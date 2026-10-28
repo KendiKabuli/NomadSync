@@ -1,0 +1,63 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root {
+  font-family: 'Inter', Arial, sans-serif;
+  color: #252943;
+  background: #f7f8fc;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-optical-sizing: auto;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.meeting-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 600px;
+}
+
+.meeting-form label {
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+.meeting-form input,
+.meeting-form select {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #e1e3ee;
+  border-radius: 8px;
+  background: white;
+  color: #252943;
+}
+
+.meeting-form input:focus,
+.meeting-form select:focus {
+  outline: 2px solid #c9c8ff;
+  border-color: #5559c9;
+}
+
+.meeting-form .primary-button {
+  align-self: flex-start;
+}
