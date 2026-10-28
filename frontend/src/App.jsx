@@ -1,5 +1,5 @@
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
 
 const meetings = [
@@ -209,6 +209,23 @@ function App() {
   const [handoverTaskTitle, setHandoverTaskTitle] = useState('')
   const [handoverTravelPlanId, setHandoverTravelPlanId] = useState('')
   const [handoverDeadline, setHandoverDeadline] = useState('')
+
+
+  useEffect(() => {
+  fetch('http://127.0.0.1:8000/api/team')
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error('Failed to fetch team members')
+      }
+      return response.json()
+    })
+    .then((data) => {
+      setTeamMembers(data.team_members)
+    })
+    .catch((error) => {
+      console.error('Error fetching team members:', error)
+    })
+}, [])
 
   function handleCreateMeeting(event) {
     event.preventDefault()

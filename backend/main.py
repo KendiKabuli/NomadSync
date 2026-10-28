@@ -14,6 +14,59 @@ app.add_middleware(
 )
 
 
+# Sample team members
+team_members = [
+    {
+        "id": 1,
+        "name": "Alex Morgan",
+        "email": "alex@example.com",
+        "country": "Kenya"
+    },
+    {
+        "id": 2,
+        "name": "Amina Hassan",
+        "email": "amina@example.com",
+        "country": "Kenya"
+    },
+    {
+        "id": 3,
+        "name": "Oliver Smith",
+        "email": "oliver@example.com",
+        "country": "United Kingdom"
+    },
+    {
+        "id": 4,
+        "name": "Nicha Srisai",
+        "email": "nicha@example.com",
+        "country": "Thailand"
+    },
+    {
+        "id": 5,
+        "name": "Emma de Vries",
+        "email": "emma@example.com",
+        "country": "Netherlands"
+    },
+    {
+        "id": 6,
+        "name": "Thabo Nkosi",
+        "email": "thabo@example.com",
+        "country": "South Africa"
+    },
+    {
+        "id": 7,
+        "name": "Linh Nguyen",
+        "email": "linh@example.com",
+        "country": "Vietnam"
+    },
+    {
+        "id": 8,
+        "name": "Minh Tran",
+        "email": "minh@example.com",
+        "country": "Vietnam"
+    }
+]
+
+
 @app.get("/")
 def home():
     return {
@@ -27,3 +80,21 @@ def health_check():
     return {
         "status": "healthy"
     }
+
+
+# Get all team members
+@app.get("/api/team")
+def get_team_members():
+    return {
+        "team_members": team_members
+    }
+
+
+# Get one team member by ID
+@app.get("/api/team/{member_id}")
+def get_team_member(member_id: int):
+    for member in team_members:
+        if member["id"] == member_id:
+            return member
+
+    return {"error": "Team member not found"}
