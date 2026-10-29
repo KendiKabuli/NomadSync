@@ -1,6 +1,7 @@
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 app = FastAPI(title="NomadSync API")
 
@@ -13,6 +14,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+class TeamMemberCreate(BaseModel):
+    name: str
+    email: str
+    country: str
 
 # Sample team members
 team_members = [
@@ -98,3 +103,22 @@ def get_team_member(member_id: int):
             return member
 
     return {"error": "Team member not found"}
+
+@app.post("/api/team")
+def add_team_member(member: TeamMemberCreate):
+    new_member = {
+        "id": max(
+            (person["id"] for person in team_members),
+            default=0
+        ) + 1,
+        "name": member.name,
+        "email": member.email,
+        "country": member.country
+    }
+
+    team_members.append(new_member)
+
+    return {
+        "message": "Team member added successfully",
+        "team_member": new_member
+    }

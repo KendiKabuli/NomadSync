@@ -286,22 +286,37 @@ function App() {
     )
   }
 
-  function handleAddMember(event) {
-    event.preventDefault()
+ 
+async function handleAddMember(event) {
+  event.preventDefault()
 
-    if (!memberName.trim() || !memberEmail.trim()) {
-      alert('Please enter the member name and email.')
-      return
-    }
+  if (!memberName.trim() || !memberEmail.trim()) {
+    alert('Please enter the member name and email.')
+    return
+  }
 
-    setTeamMembers((previous) => [
-      ...previous,
-      {
-        id: Date.now(),
+  try {
+    const response = await fetch('http://127.0.0.1:8000/api/team', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
         name: memberName.trim(),
         email: memberEmail.trim(),
         country: memberCountry,
-      },
+      }),
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to add team member')
+    }
+
+    const data = await response.json()
+
+    setTeamMembers((previous) => [
+      ...previous,
+      data.team_member,
     ])
 
     setMemberName('')
@@ -309,7 +324,12 @@ function App() {
     setMemberCountry('Kenya')
 
     alert('Team member added successfully!')
+  } catch (error) {
+    console.error('Error adding team member:', error)
+    alert('Could not add team member. Please check that the backend is running and try again.')
   }
+}
+
 
   function handleRemoveMember(memberId) {
     const confirmed = window.confirm(
