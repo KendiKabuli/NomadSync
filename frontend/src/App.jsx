@@ -1,5 +1,6 @@
 
 import { useEffect, useState } from 'react'
+import API from './api'
 import './App.css'
 
 const meetings = [
@@ -184,7 +185,7 @@ function App() {
   const [meetingTime, setMeetingTime] = useState('')
   const [participants, setParticipants] = useState('2')
 
-  const [taskList, setTaskList] = useState(initialTasks)
+  const [taskList, setTaskList] = useState([])
   const [taskTitle, setTaskTitle] = useState('')
   const [taskDeadline, setTaskDeadline] = useState('')
   const [taskPriority, setTaskPriority] = useState('Medium')
@@ -227,6 +228,23 @@ function App() {
     })
 }, [])
 
+useEffect(() => {
+  API.get('/tasks')
+    .then((response) => {
+      const tasks = response.data.tasks.map((task) => ({
+        ...task,
+        deadline: task.due_date,
+        assignedTo: task.assigned_to,
+      }))
+
+      setTaskList(tasks)
+      console.log('Tasks loaded from database:', tasks)
+    })
+    .catch((error) => {
+      console.error('Error loading tasks:', error)
+    })
+}, [])
+
   function handleCreateMeeting(event) {
     event.preventDefault()
 
@@ -253,38 +271,102 @@ function App() {
     alert('Meeting created successfully!')
   }
 
-  function handleCreateTask(event) {
-    event.preventDefault()
+async function handleCreateTask(event) {
+  event.preventDefault()
 
-    if (!taskTitle.trim() || !taskDeadline) {
-      alert('Please enter a task name and deadline.')
-      return
+  if (!taskTitle.trim() || !taskDeadline) {
+    alert('Please enter a task name and deadline.')
+    return
+  }
+
+  try {
+    const response = await API.post('/tasks', {
+      title: taskTitle.trim(),
+      description: '',
+      assigned_to: 'Alex Morgan',
+      due_date: taskDeadline,
+      priority: taskPriority,
+    })
+
+    const newTask = {
+      ...response.data.task,
+      deadline: response.data.task.due_date,
+      assignedTo: response.data.task.assigned_to,
     }
 
-    setTaskList((previous) => [
-      ...previous,
-      {
-        title: taskTitle.trim(),
-        deadline: taskDeadline,
-        priority: taskPriority,
-        completed: false,
-      },
-    ])
+    setTaskList((previous) => [...previous, newTask])
 
     setTaskTitle('')
     setTaskDeadline('')
     setTaskPriority('Medium')
+
+    alert('Task saved successfully!')
+  } catch (error) {
+    console.error('Error creating task:', error)
+    alert('Could not save task. Please check your backend.')
+  }
+}
+
+
+  
+async function toggleTask(index) {
+  const task = taskList[index]
+
+  if (!task || !task.id) {
+    alert('Task ID not found.')
+    return
   }
 
-  function toggleTask(index) {
+  try {
+    const response = await API.put(`/tasks/${task.id}`, {
+      completed: !task.completed,
+    })
+
+    const updatedTask = response.data.task
+
     setTaskList((previous) =>
-      previous.map((task, taskIndex) =>
-        taskIndex === index
-          ? { ...task, completed: !task.completed }
-          : task
+      previous.map((item) =>
+        item.id === task.id
+          ? {
+              ...item,
+              ...updatedTask,
+              deadline: updatedTask.due_date,
+              assignedTo: updatedTask.assigned_to,
+            }
+          : item
       )
     )
+
+  } catch (error) {
+    console.error('Error updating task:', error)
+    alert('Could not update task completion status.')
   }
+}
+
+async function handleDeleteTask(taskId) {
+  const confirmDelete = window.confirm(
+    'Are you sure you want to delete this task?'
+  )
+
+  if (!confirmDelete) {
+    return
+  }
+
+  try {
+    await API.delete(`/tasks/${taskId}`)
+
+    setTaskList((previous) =>
+      previous.filter((task) => task.id !== taskId)
+    )
+
+    alert('Task deleted successfully!')
+  } catch (error) {
+    console.error('Error deleting task:', error)
+    alert('Could not delete task. Please try again.')
+  }
+}
+
+
 
  
 async function handleAddMember(event) {
@@ -922,30 +1004,40 @@ async function handleAddMember(event) {
               </div>
             </div>
 
-            {taskList.map((task, index) => (
-              <div className="meeting-row" key={`${task.title}-${index}`}>
-                <input
-                  type="checkbox"
-                  checked={task.completed}
-                  onChange={() => toggleTask(index)}
-                  aria-label={`Mark ${task.title} as completed`}
-                />
+   
+{taskList.map((task, index) => (
+  <div className="meeting-row" key={task.id}>
+    <input
+      type="checkbox"
+      checked={task.completed}
+      onChange={() => toggleTask(index)}
+      aria-label={`Mark ${task.title} as completed`}
+    />
 
-                <div className="meeting-info">
-                  <strong
-                    style={{
-                      textDecoration: task.completed ? 'line-through' : 'none',
-                    }}
-                  >
-                    {task.title}
-                  </strong>
-                  <span>Deadline: {task.deadline}</span>
-                  <small>Priority: {task.priority}</small>
-                </div>
+    <div className="meeting-info">
+      <strong
+        style={{
+          textDecoration: task.completed ? 'line-through' : 'none',
+        }}
+      >
+        {task.title}
+      </strong>
+      <span>Deadline: {task.deadline}</span>
+      <small>Priority: {task.priority}</small>
+    </div>
 
-                <span>{task.completed ? 'Completed' : 'Pending'}</span>
-              </div>
-            ))}
+    <span>{task.completed ? 'Completed' : 'Pending'}</span>
+
+    <button
+      type="button"
+      className="secondary-button"
+      onClick={() => handleDeleteTask(task.id)}
+    >
+      Delete
+    </button>
+  </div>
+))}
+
           </section>
         </main>
       ) : activePage === 'My Team' ? (

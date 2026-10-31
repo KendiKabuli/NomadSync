@@ -3,9 +3,10 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from typing import Optional
 
 from database import engine, SessionLocal, Base
-from models import TeamMember
+from models import TeamMember, Task
 
 app = FastAPI(title="NomadSync API")
 
@@ -18,7 +19,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 # Create database tables if they do not exist
 Base.metadata.create_all(bind=engine)
 
@@ -28,6 +28,25 @@ class TeamMemberCreate(BaseModel):
     name: str
     email: str
     country: str
+
+
+# Request model for creating tasks
+class TaskCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    assigned_to: str
+    due_date: Optional[str] = None
+    priority: str = "Medium"
+
+
+# Request model for updating tasks
+class TaskUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    assigned_to: Optional[str] = None
+    due_date: Optional[str] = None
+    priority: Optional[str] = None
+    completed: Optional[bool] = None
 
 
 # Original eight team members
@@ -84,6 +103,19 @@ def get_db():
         db.close()
 
 
+# Convert a task database record into a response dictionary
+def task_to_dict(task):
+    return {
+        "id": task.id,
+        "title": task.title,
+        "description": task.description,
+        "assigned_to": task.assigned_to,
+        "due_date": task.due_date,
+        "priority": task.priority,
+        "completed": task.completed
+    }
+
+
 # Add the original team members if the database is empty
 @app.on_event("startup")
 def seed_team_members():
@@ -115,6 +147,8 @@ def health_check():
         "status": "healthy"
     }
 
+
+# ---------------- TEAM MEMBER ENDPOINTS ----------------
 
 # Get all team members from PostgreSQL
 @app.get("/api/team")
@@ -192,4 +226,114 @@ def add_team_member(
             "email": new_member.email,
             "country": new_member.country
         }
+    }
+
+
+# ---------------- TASK ENDPOINTS ----------------
+
+# Get all tasks from PostgreSQL
+@app.get("/api/tasks")
+def get_tasks(db: Session = Depends(get_db)):
+    tasks = db.query(Task).order_by(Task.id).all()
+
+    return {
+        "tasks": [task_to_dict(task) for task in tasks]
+    }
+
+
+# Get one task by ID
+@app.get("/api/tasks/{task_id}")
+def get_task(
+    task_id: int,
+    db: Session = Depends(get_db)
+):
+    task = db.query(Task).filter(Task.id == task_id).first()
+
+    if not task:
+        raise HTTPException(
+            status_code=404,
+            detail="Task not found"
+        )
+
+    return task_to_dict(task)
+
+
+# Add a new task to PostgreSQL
+@app.post("/api/tasks")
+def add_task(
+    task_data: TaskCreate,
+    db: Session = Depends(get_db)
+):
+    new_task = Task(
+        title=task_data.title,
+        description=task_data.description,
+        assigned_to=task_data.assigned_to,
+        due_date=task_data.due_date,
+        priority=task_data.priority,
+        completed=False
+    )
+
+    db.add(new_task)
+    db.commit()
+    db.refresh(new_task)
+
+    return {
+        "message": "Task added successfully",
+        "task": task_to_dict(new_task)
+    }
+
+
+# Update an existing task
+@app.put("/api/tasks/{task_id}")
+def update_task(
+    task_id: int,
+    task_data: TaskUpdate,
+    db: Session = Depends(get_db)
+):
+    task = db.query(Task).filter(Task.id == task_id).first()
+
+    if not task:
+        raise HTTPException(
+            status_code=404,
+            detail="Task not found"
+        )
+
+    updates = task_data.dict(exclude_unset=True)
+
+    # Do not overwrite required fields with null values
+    for field in ["title", "assigned_to", "priority", "completed"]:
+        if field in updates and updates[field] is None:
+            updates.pop(field)
+
+    for field, value in updates.items():
+        setattr(task, field, value)
+
+    db.commit()
+    db.refresh(task)
+
+    return {
+        "message": "Task updated successfully",
+        "task": task_to_dict(task)
+    }
+
+
+# Delete a task
+@app.delete("/api/tasks/{task_id}")
+def delete_task(
+    task_id: int,
+    db: Session = Depends(get_db)
+):
+    task = db.query(Task).filter(Task.id == task_id).first()
+
+    if not task:
+        raise HTTPException(
+            status_code=404,
+            detail="Task not found"
+        )
+
+    db.delete(task)
+    db.commit()
+
+    return {
+        "message": "Task deleted successfully"
     }
