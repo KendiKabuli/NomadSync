@@ -228,6 +228,53 @@ def add_team_member(
         }
     }
 
+# UPDATE AN EXISTING TEAM MEMBER
+@app.put("/api/team/{member_id}")
+def update_team_member(
+    member_id: int,
+    member: TeamMemberCreate,
+    db: Session = Depends(get_db)
+):
+    existing_member = db.query(TeamMember).filter(
+        TeamMember.id == member_id
+    ).first()
+
+    if not existing_member:
+        raise HTTPException(
+            status_code=404,
+            detail="Team member not found"
+        )
+
+    duplicate_email = db.query(TeamMember).filter(
+        TeamMember.email == member.email,
+        TeamMember.id != member_id
+    ).first()
+
+    if duplicate_email:
+        raise HTTPException(
+            status_code=409,
+            detail="Another team member already uses this email"
+        )
+
+    existing_member.name = member.name
+    existing_member.email = member.email
+    existing_member.country = member.country
+
+    db.commit()
+    db.refresh(existing_member)
+
+    return {
+        "message": "Team member updated successfully",
+        "member": {
+            "id": existing_member.id,
+            "name": existing_member.name,
+            "email": existing_member.email,
+            "country": existing_member.country
+        }
+    }
+
+    
+
 
 # ---------------- TASK ENDPOINTS ----------------
 

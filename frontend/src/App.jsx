@@ -202,6 +202,10 @@ function App() {
   const [memberName, setMemberName] = useState('')
   const [memberEmail, setMemberEmail] = useState('')
   const [memberCountry, setMemberCountry] = useState('Kenya')
+  const [editingMemberId, setEditingMemberId] = useState(null)
+  const [editMemberName, setEditMemberName] = useState('')
+  const [editMemberEmail, setEditMemberEmail] = useState('')
+  const [editMemberCountry, setEditMemberCountry] = useState('Kenya')
 
   const [travelPlanList, setTravelPlanList] = useState([])
   const [travelMemberId, setTravelMemberId] = useState('')
@@ -424,7 +428,42 @@ async function handleDeleteTask(taskId) {
 
 
 
- 
+ function handleEditMember(member) {
+  setEditingMemberId(member.id)
+  setEditMemberName(member.name)
+  setEditMemberEmail(member.email)
+  setEditMemberCountry(member.country)
+}
+async function handleUpdateMember(event) {
+  event.preventDefault()
+
+  if (!editMemberName.trim() || !editMemberEmail.trim()) {
+    alert('Please enter the member name and email.')
+    return
+  }
+
+  try {
+    const response = await API.put(`/team/${editingMemberId}`, {
+      name: editMemberName.trim(),
+      email: editMemberEmail.trim(),
+      country: editMemberCountry,
+    })
+
+    const updatedMember = response.data.member
+
+    setTeamMembers((previous) =>
+      previous.map((member) =>
+        member.id === editingMemberId ? updatedMember : member
+      )
+    )
+
+    setEditingMemberId(null)
+    alert('Team member updated successfully!')
+  } catch (error) {
+    console.error('Error updating team member:', error)
+    alert('Could not update team member. Please try again.')
+  }
+}
 async function handleAddMember(event) {
   event.preventDefault()
 
@@ -1207,7 +1246,62 @@ async function handleAddMember(event) {
               <small>Different countries represented</small>
             </div>
           </section>
+{editingMemberId !== null && (
+  <section className="panel">
+    <div className="panel-heading">
+      <div>
+        <h3>Edit Team Member</h3>
+        <p>Update this team member's information.</p>
+      </div>
+    </div>
 
+    <form className="meeting-form" onSubmit={handleUpdateMember}>
+      <label htmlFor="editMemberName">Full name</label>
+      <input
+        id="editMemberName"
+        type="text"
+        value={editMemberName}
+        onChange={(event) => setEditMemberName(event.target.value)}
+        required
+      />
+
+      <label htmlFor="editMemberEmail">Email address</label>
+      <input
+        id="editMemberEmail"
+        type="email"
+        value={editMemberEmail}
+        onChange={(event) => setEditMemberEmail(event.target.value)}
+        required
+      />
+
+      <label htmlFor="editMemberCountry">Country</label>
+      <select
+        id="editMemberCountry"
+        value={editMemberCountry}
+        onChange={(event) => setEditMemberCountry(event.target.value)}
+        required
+      >
+        {worldCountries.map((country) => (
+          <option key={country} value={country}>
+            {country}
+          </option>
+        ))}
+      </select>
+
+      <button type="submit" className="primary-button">
+        Save Changes
+      </button>
+
+      <button
+        type="button"
+        className="secondary-button"
+        onClick={() => setEditingMemberId(null)}
+      >
+        Cancel
+      </button>
+    </form>
+  </section>
+)}
           <section className="panel">
             <div className="panel-heading">
               <div>
@@ -1318,7 +1412,15 @@ async function handleAddMember(event) {
                           <span>{countryInfo.offset}</span>
                         </div>
                       </div>
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => handleEditMember(member)}
+                      >
+                         Edit Member
+                       </button>
 
+                      
                       <button
                         type="button"
                         className="remove-member-button"
