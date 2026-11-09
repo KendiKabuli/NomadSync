@@ -189,6 +189,7 @@ function App() {
   const [taskTitle, setTaskTitle] = useState('')
   const [taskDeadline, setTaskDeadline] = useState('')
   const [taskPriority, setTaskPriority] = useState('Medium')
+  const [taskAssignedTo, setTaskAssignedTo] = useState('Alex Morgan')
 
   const [teamMembers, setTeamMembers] = useState(initialTeam)
   const [memberName, setMemberName] = useState('')
@@ -283,7 +284,7 @@ async function handleCreateTask(event) {
     const response = await API.post('/tasks', {
       title: taskTitle.trim(),
       description: '',
-      assigned_to: 'Alex Morgan',
+      assigned_to: taskAssignedTo,
       due_date: taskDeadline,
       priority: taskPriority,
     })
@@ -299,6 +300,7 @@ async function handleCreateTask(event) {
     setTaskTitle('')
     setTaskDeadline('')
     setTaskPriority('Medium')
+    setTaskAssignedTo('Alex Morgan')
 
     alert('Task saved successfully!')
   } catch (error) {
@@ -956,41 +958,56 @@ async function handleAddMember(event) {
               </div>
             </div>
 
-            <form className="meeting-form" onSubmit={handleCreateTask}>
-              <label htmlFor="taskTitle">Task name</label>
-              <input
-                id="taskTitle"
-                type="text"
-                placeholder="e.g. Prepare weekly report"
-                value={taskTitle}
-                onChange={(event) => setTaskTitle(event.target.value)}
-                required
-              />
+<form className="meeting-form" onSubmit={handleCreateTask}>
+  <label htmlFor="taskTitle">Task name</label>
+  <input
+    id="taskTitle"
+    type="text"
+    placeholder="e.g. Prepare weekly report"
+    value={taskTitle}
+    onChange={(event) => setTaskTitle(event.target.value)}
+    required
+  />
 
-              <label htmlFor="taskDeadline">Deadline</label>
-              <input
-                id="taskDeadline"
-                type="date"
-                value={taskDeadline}
-                onChange={(event) => setTaskDeadline(event.target.value)}
-                required
-              />
+  <label htmlFor="taskDeadline">Deadline</label>
+  <input
+    id="taskDeadline"
+    type="date"
+    value={taskDeadline}
+    onChange={(event) => setTaskDeadline(event.target.value)}
+    required
+  />
 
-              <label htmlFor="taskPriority">Priority</label>
-              <select
-                id="taskPriority"
-                value={taskPriority}
-                onChange={(event) => setTaskPriority(event.target.value)}
-              >
-                <option value="Low">Low</option>
-                <option value="Medium">Medium</option>
-                <option value="High">High</option>
-              </select>
+  <label htmlFor="taskAssignedTo">Assigned to</label>
+  <select
+    id="taskAssignedTo"
+    value={taskAssignedTo}
+    onChange={(event) => setTaskAssignedTo(event.target.value)}
+    required
+  >
+    {teamMembers.map((member) => (
+      <option key={member.id} value={member.name}>
+        {member.name}
+      </option>
+    ))}
+  </select>
 
-              <button type="submit" className="primary-button">
-                + Add Task
-              </button>
-            </form>
+  <label htmlFor="taskPriority">Priority</label>
+  <select
+    id="taskPriority"
+    value={taskPriority}
+    onChange={(event) => setTaskPriority(event.target.value)}
+  >
+    <option value="Low">Low</option>
+    <option value="Medium">Medium</option>
+    <option value="High">High</option>
+  </select>
+
+  <button type="submit" className="primary-button">
+    + Add Task
+  </button>
+</form>
+
           </section>
 
           <section className="panel" style={{ marginTop: '24px' }}>
