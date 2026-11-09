@@ -257,23 +257,49 @@ useEffect(() => {
     })
 }, [])
 
-  function handleCreateMeeting(event) {
-    event.preventDefault()
+// Load meetings from the database
+useEffect(() => {
+  API.get('/meetings')
+    .then((response) => {
+      const meetings = response.data.meetings.map((meeting) => ({
+        ...meeting,
+        date: meeting.meeting_date,
+        time: meeting.meeting_time,
+        people: `${meeting.participants} participants`,
+      }))
 
-    if (!meetingTitle.trim() || !meetingDate || !meetingTime) {
-      alert('Please fill in all meeting details.')
-      return
+      setMeetingList(meetings)
+      console.log('Meetings loaded from database:', meetings)
+    })
+    .catch((error) => {
+      console.error('Error loading meetings:', error)
+    })
+}, [])
+
+ async function handleCreateMeeting(event) {
+  event.preventDefault()
+
+  if (!meetingTitle.trim() || !meetingDate || !meetingTime) {
+    alert('Please fill in all meeting details.')
+    return
+  }
+
+  try {
+    const response = await API.post('/meetings', {
+      title: meetingTitle.trim(),
+      meeting_date: meetingDate,
+      meeting_time: meetingTime,
+      participants: Number(participants),
+    })
+
+    const newMeeting = {
+      ...response.data.meeting,
+      date: response.data.meeting.meeting_date,
+      time: response.data.meeting.meeting_time,
+      people: `${response.data.meeting.participants} participants`,
     }
 
-    setMeetingList((previous) => [
-      ...previous,
-      {
-        title: meetingTitle.trim(),
-        date: meetingDate,
-        time: meetingTime,
-        people: `${participants} participants`,
-      },
-    ])
+    setMeetingList((previous) => [...previous, newMeeting])
 
     setMeetingTitle('')
     setMeetingDate('')
@@ -281,7 +307,11 @@ useEffect(() => {
     setParticipants('2')
 
     alert('Meeting created successfully!')
+  } catch (error) {
+    console.error('Error creating meeting:', error)
+    alert('Failed to create meeting. Please try again.')
   }
+}
 
 async function handleCreateTask(event) {
   event.preventDefault()

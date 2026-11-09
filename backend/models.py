@@ -22,3 +22,13 @@ class Task(Base):
     due_date = Column(String(50), nullable=True)
     priority = Column(String(20), default="Medium")
     completed = Column(Boolean, default=False)
+
+
+class Meeting(Base):
+    __tablename__ = "meetings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(200), nullable=False)
+    meeting_date = Column(String(20), nullable=False)
+    meeting_time = Column(String(20), nullable=False)
+    participants = Column(Integer, default=2)

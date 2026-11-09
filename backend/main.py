@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 
 from database import engine, SessionLocal, Base
-from models import TeamMember, Task
+from models import TeamMember, Task, Meeting
 
 app = FastAPI(title="NomadSync API")
 
@@ -29,9 +29,15 @@ class TeamMemberCreate(BaseModel):
     email: str
     country: str
 
+class TaskCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    assigned_to: str
+    due_date: Optional[str] = None
+    priority: str = "Medium"
 
 # Request model for creating tasks
-class TaskCreate(BaseModel):
+
     title: str
     description: Optional[str] = None
     assigned_to: str
@@ -49,7 +55,22 @@ class TaskUpdate(BaseModel):
     completed: Optional[bool] = None
 
 
+class MeetingCreate(BaseModel):
+    title: str
+    meeting_date: str
+    meeting_time: str
+    participants: int = 2
+
+
+class MeetingUpdate(BaseModel):
+    title: Optional[str] = None
+    meeting_date: Optional[str] = None
+    meeting_time: Optional[str] = None
+    participants: Optional[int] = None
+
+
 # Original eight team members
+
 initial_team = [
     {
         "name": "Alex Morgan",
@@ -414,4 +435,49 @@ def delete_task(
 
     return {
         "message": "Task deleted successfully"
+    }
+
+# ---------------- MEETING ENDPOINTS ----------------
+
+# Convert meeting details into a dictionary
+def meeting_to_dict(meeting):
+    return {
+        "id": meeting.id,
+        "title": meeting.title,
+        "meeting_date": meeting.meeting_date,
+        "meeting_time": meeting.meeting_time,
+        "participants": meeting.participants
+    }
+
+
+# Get all meetings from PostgreSQL
+@app.get("/api/meetings")
+def get_meetings(db: Session = Depends(get_db)):
+    meetings = db.query(Meeting).order_by(Meeting.id).all()
+
+    return {
+        "meetings": [meeting_to_dict(meeting) for meeting in meetings]
+    }
+
+
+# Add a new meeting to PostgreSQL
+@app.post("/api/meetings")
+def add_meeting(
+    meeting_data: MeetingCreate,
+    db: Session = Depends(get_db)
+):
+    new_meeting = Meeting(
+        title=meeting_data.title,
+        meeting_date=meeting_data.meeting_date,
+        meeting_time=meeting_data.meeting_time,
+        participants=meeting_data.participants
+    )
+
+    db.add(new_meeting)
+    db.commit()
+    db.refresh(new_meeting)
+
+    return {
+        "message": "Meeting created successfully",
+        "meeting": meeting_to_dict(new_meeting)
     }
