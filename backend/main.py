@@ -274,7 +274,38 @@ def update_team_member(
     }
 
     
+# DELETE A TEAM MEMBER
+@app.delete("/api/team/{member_id}")
+def delete_team_member(
+    member_id: int,
+    db: Session = Depends(get_db)
+):
+    existing_member = db.query(TeamMember).filter(
+        TeamMember.id == member_id
+    ).first()
 
+    if not existing_member:
+        raise HTTPException(
+            status_code=404,
+            detail="Team member not found"
+        )
+
+    assigned_tasks = db.query(Task).filter(
+        Task.assigned_to == existing_member.name
+    ).first()
+
+    if assigned_tasks:
+        raise HTTPException(
+            status_code=409,
+            detail="This member has assigned tasks. Reassign their tasks before removing them."
+        )
+
+    db.delete(existing_member)
+    db.commit()
+
+    return {
+        "message": "Team member removed successfully"
+    }
 
 # ---------------- TASK ENDPOINTS ----------------
 

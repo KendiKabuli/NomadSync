@@ -508,17 +508,35 @@ async function handleAddMember(event) {
 }
 
 
-  function handleRemoveMember(memberId) {
-    const confirmed = window.confirm(
-      'Are you sure you want to remove this team member?'
+  async function handleRemoveMember(memberId) {
+  const member = teamMembers.find((item) => item.id === memberId)
+
+  if (!member) return
+
+  const confirmed = window.confirm(
+    `Are you sure you want to remove ${member.name}?`
+  )
+
+  if (!confirmed) return
+
+  try {
+    await API.delete(`/team/${memberId}`)
+
+    setTeamMembers((previous) =>
+      previous.filter((item) => item.id !== memberId)
     )
 
-    if (confirmed) {
-      setTeamMembers((previous) =>
-        previous.filter((member) => member.id !== memberId)
-      )
-    }
+    alert('Team member removed successfully!')
+  } catch (error) {
+    console.error('Error removing team member:', error)
+
+    const message =
+      error.response?.data?.detail ||
+      'Could not remove team member. Please try again.'
+
+    alert(message)
   }
+}
 
   function handleCreateTravelPlan(event) {
     event.preventDefault()
