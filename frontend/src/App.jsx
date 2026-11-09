@@ -1040,6 +1040,7 @@ async function handleAddMember(event) {
         {task.title}
       </strong>
       <span>Deadline: {task.deadline}</span>
+      <span>Assigned to: {task.assignedTo || task.assigned_to}</span>
       <small>Priority: {task.priority}</small>
     </div>
 
