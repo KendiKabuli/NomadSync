@@ -184,6 +184,7 @@ function App() {
   const [meetingDate, setMeetingDate] = useState('')
   const [meetingTime, setMeetingTime] = useState('')
   const [participants, setParticipants] = useState('2')
+  const [editingMeetingId, setEditingMeetingId] = useState(null)
 
   const [taskList, setTaskList] = useState([])
   const [taskTitle, setTaskTitle] = useState('')
@@ -276,7 +277,21 @@ useEffect(() => {
     })
 }, [])
 
- async function handleCreateMeeting(event) {
+
+ function handleEditMeeting(meeting) {
+  console.log('Meeting selected for editing:', meeting)
+
+  setEditingMeetingId(meeting.id)
+  setMeetingTitle(meeting.title)
+  setMeetingDate(meeting.meeting_date || meeting.date)
+  setMeetingTime(meeting.meeting_time || meeting.time)
+
+  const participantCount =
+    meeting.participants ?? Number.parseInt(meeting.people, 10)
+
+  setParticipants(String(participantCount))
+}
+async function handleCreateMeeting(event) {
   event.preventDefault()
 
   if (!meetingTitle.trim() || !meetingDate || !meetingTime) {
@@ -284,32 +299,78 @@ useEffect(() => {
     return
   }
 
-  try {
-    const response = await API.post('/meetings', {
-      title: meetingTitle.trim(),
-      meeting_date: meetingDate,
-      meeting_time: meetingTime,
-      participants: Number(participants),
-    })
+  const meetingData = {
+    title: meetingTitle.trim(),
+    meeting_date: meetingDate,
+    meeting_time: meetingTime,
+    participants: Number(participants),
+  }
 
-    const newMeeting = {
+  try {
+    let response
+
+    if (editingMeetingId) {
+      response = await API.put(
+        `/meetings/${editingMeetingId}`,
+        meetingData
+      )
+    } else {
+      response = await API.post('/meetings', meetingData)
+    }
+
+    const savedMeeting = {
       ...response.data.meeting,
       date: response.data.meeting.meeting_date,
       time: response.data.meeting.meeting_time,
       people: `${response.data.meeting.participants} participants`,
     }
 
-    setMeetingList((previous) => [...previous, newMeeting])
+    if (editingMeetingId) {
+      setMeetingList((previous) =>
+        previous.map((meeting) =>
+          meeting.id === editingMeetingId ? savedMeeting : meeting
+        )
+      )
 
+      alert('Meeting updated successfully!')
+    } else {
+      setMeetingList((previous) => [...previous, savedMeeting])
+
+      alert('Meeting created successfully!')
+    }
+
+    setEditingMeetingId(null)
     setMeetingTitle('')
     setMeetingDate('')
     setMeetingTime('')
     setParticipants('2')
 
-    alert('Meeting created successfully!')
   } catch (error) {
-    console.error('Error creating meeting:', error)
-    alert('Failed to create meeting. Please try again.')
+    console.error('Error saving meeting:', error)
+    alert('Failed to save meeting. Please try again.')
+  }
+}
+
+async function handleDeleteMeeting(meetingId) {
+  const confirmed = window.confirm(
+    'Are you sure you want to delete this meeting?'
+  )
+
+  if (!confirmed) {
+    return
+  }
+
+  try {
+    await API.delete(`/meetings/${meetingId}`)
+
+    setMeetingList((previous) =>
+      previous.filter((meeting) => meeting.id !== meetingId)
+    )
+
+    alert('Meeting deleted successfully!')
+  } catch (error) {
+    console.error('Error deleting meeting:', error)
+    alert('Failed to delete meeting. Please try again.')
   }
 }
 
@@ -1067,16 +1128,33 @@ async function handleAddMember(event) {
             </div>
 
             {meetingList.map((meeting, index) => (
-              <div className="meeting-row" key={`${meeting.title}-${index}`}>
-                <div className="calendar-icon">▦</div>
-                <div className="meeting-info">
-                  <strong>{meeting.title}</strong>
-                  <span>{meeting.date}</span>
-                  <small>{meeting.people}</small>
-                </div>
-                <div className="meeting-time">{meeting.time}</div>
-              </div>
-            ))}
+  <div className="meeting-row" key={meeting.id || index}>
+    <div className="calendar-icon">▦</div>
+
+    <div className="meeting-info">
+      <strong>{meeting.title}</strong>
+      <span>{meeting.date}</span>
+      <small>{meeting.people}</small>
+    </div>
+
+    <div className="meeting-time">{meeting.time}</div>
+
+    <button
+      type="button"
+      className="secondary-button"
+      onClick={() => handleEditMeeting(meeting)}
+    >
+      Edit
+    </button>
+    <button
+  type="button"
+  className="secondary-button"
+  onClick={() => handleDeleteMeeting(meeting.id)}
+>
+  Delete
+</button>
+  </div>
+))}
           </section>
         </main>
       ) : activePage === 'Tasks' ? (
@@ -1147,7 +1225,7 @@ async function handleAddMember(event) {
     </select>
 
     <button type="submit" className="primary-button">
-      Save Changes
+      {editingMeetingId ? 'Update Meeting' : '+ Create Meeting'}
     </button>
 
     <button

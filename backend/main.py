@@ -481,3 +481,43 @@ def add_meeting(
         "message": "Meeting created successfully",
         "meeting": meeting_to_dict(new_meeting)
     }
+
+# Update an existing meeting
+@app.put("/api/meetings/{meeting_id}")
+def update_meeting(
+    meeting_id: int,
+    meeting_data: MeetingUpdate,
+    db: Session = Depends(get_db)
+):
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    updates = meeting_data.dict(exclude_unset=True)
+
+    for field, value in updates.items():
+        if value is not None:
+            setattr(meeting, field, value)
+
+    db.commit()
+    db.refresh(meeting)
+
+    return {
+        "message": "Meeting updated successfully",
+        "meeting": meeting_to_dict(meeting)
+    }
+
+
+# Delete a meeting
+@app.delete("/api/meetings/{meeting_id}")
+def delete_meeting(meeting_id: int, db: Session = Depends(get_db)):
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    db.delete(meeting)
+    db.commit()
+
+    return {"message": "Meeting deleted successfully"}
