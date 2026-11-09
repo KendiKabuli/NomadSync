@@ -190,6 +190,13 @@ function App() {
   const [taskDeadline, setTaskDeadline] = useState('')
   const [taskPriority, setTaskPriority] = useState('Medium')
   const [taskAssignedTo, setTaskAssignedTo] = useState('Alex Morgan')
+  const [editingTaskId, setEditingTaskId] = useState(null)
+  const [editTaskTitle, setEditTaskTitle] = useState('')
+  const [editTaskDeadline, setEditTaskDeadline] = useState('')
+  const [editTaskPriority, setEditTaskPriority] = useState('Medium')
+  const [editTaskAssignedTo, setEditTaskAssignedTo] = useState('')
+  
+  
 
   const [teamMembers, setTeamMembers] = useState(initialTeam)
   const [memberName, setMemberName] = useState('')
@@ -345,6 +352,53 @@ async function toggleTask(index) {
   }
 }
 
+function handleEditTask(task) {
+  setEditingTaskId(task.id)
+  setEditTaskTitle(task.title)
+  setEditTaskDeadline(task.deadline || task.due_date || '')
+  setEditTaskPriority(task.priority)
+  setEditTaskAssignedTo(task.assignedTo || task.assigned_to)
+}
+
+async function handleUpdateTask(event) {
+  event.preventDefault()
+
+  if (!editTaskTitle.trim() || !editTaskDeadline || !editTaskAssignedTo) {
+    alert('Please fill in all task details.')
+    return
+  }
+
+  try {
+    const response = await API.put(`/tasks/${editingTaskId}`, {
+      title: editTaskTitle.trim(),
+      description: '',
+      assigned_to: editTaskAssignedTo,
+      due_date: editTaskDeadline,
+      priority: editTaskPriority,
+    })
+
+    const updatedTask = response.data.task
+
+    setTaskList((previous) =>
+      previous.map((task) =>
+        task.id === editingTaskId
+          ? {
+              ...task,
+              ...updatedTask,
+              deadline: updatedTask.due_date,
+              assignedTo: updatedTask.assigned_to,
+            }
+          : task
+      )
+    )
+
+    setEditingTaskId(null)
+    alert('Task updated successfully!')
+  } catch (error) {
+    console.error('Error updating task:', error)
+    alert('Could not update task. Please try again.')
+  }
+}
 async function handleDeleteTask(taskId) {
   const confirmDelete = window.confirm(
     'Are you sure you want to delete this task?'
@@ -958,6 +1012,66 @@ async function handleAddMember(event) {
               </div>
             </div>
 
+{editingTaskId !== null && (
+  <form className="meeting-form" onSubmit={handleUpdateTask}>
+    <h3>Edit Task</h3>
+
+    <label htmlFor="editTaskTitle">Task name</label>
+    <input
+      id="editTaskTitle"
+      type="text"
+      value={editTaskTitle}
+      onChange={(event) => setEditTaskTitle(event.target.value)}
+      required
+    />
+
+    <label htmlFor="editTaskDeadline">Deadline</label>
+    <input
+      id="editTaskDeadline"
+      type="date"
+      value={editTaskDeadline}
+      onChange={(event) => setEditTaskDeadline(event.target.value)}
+      required
+    />
+
+    <label htmlFor="editTaskAssignedTo">Assigned to</label>
+    <select
+      id="editTaskAssignedTo"
+      value={editTaskAssignedTo}
+      onChange={(event) => setEditTaskAssignedTo(event.target.value)}
+      required
+    >
+      {teamMembers.map((member) => (
+        <option key={member.id} value={member.name}>
+          {member.name}
+        </option>
+      ))}
+    </select>
+
+    <label htmlFor="editTaskPriority">Priority</label>
+    <select
+      id="editTaskPriority"
+      value={editTaskPriority}
+      onChange={(event) => setEditTaskPriority(event.target.value)}
+    >
+      <option value="Low">Low</option>
+      <option value="Medium">Medium</option>
+      <option value="High">High</option>
+    </select>
+
+    <button type="submit" className="primary-button">
+      Save Changes
+    </button>
+
+    <button
+      type="button"
+      className="secondary-button"
+      onClick={() => setEditingTaskId(null)}
+    >
+      Cancel
+    </button>
+  </form>
+)}
 <form className="meeting-form" onSubmit={handleCreateTask}>
   <label htmlFor="taskTitle">Task name</label>
   <input
@@ -1045,6 +1159,14 @@ async function handleAddMember(event) {
     </div>
 
     <span>{task.completed ? 'Completed' : 'Pending'}</span>
+
+        <button
+      type="button"
+      className="secondary-button"
+      onClick={() => handleEditTask(task)}
+    >
+      Edit
+    </button>
 
     <button
       type="button"
