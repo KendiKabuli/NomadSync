@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 
 from database import engine, SessionLocal, Base
-from models import TeamMember, Task, Meeting
+from models import TeamMember, Task, Meeting, TravelPlan
 
 app = FastAPI(title="NomadSync API")
 
@@ -67,6 +67,23 @@ class MeetingUpdate(BaseModel):
     meeting_date: Optional[str] = None
     meeting_time: Optional[str] = None
     participants: Optional[int] = None
+
+class TravelPlanCreate(BaseModel):
+    member: str
+    destination: str
+    departure_date: str
+    return_date: str
+    reason: Optional[str] = None
+    status: str = "Upcoming"
+
+
+class TravelPlanUpdate(BaseModel):
+    member: Optional[str] = None
+    destination: Optional[str] = None
+    departure_date: Optional[str] = None
+    return_date: Optional[str] = None
+    reason: Optional[str] = None
+    status: Optional[str] = None   
 
 
 # Original eight team members
@@ -449,7 +466,16 @@ def meeting_to_dict(meeting):
         "participants": meeting.participants
     }
 
-
+def travel_plan_to_dict(travel_plan):
+    return {
+        "id": travel_plan.id,
+        "member": travel_plan.member,
+        "destination": travel_plan.destination,
+        "departure_date": travel_plan.departure_date,
+        "return_date": travel_plan.return_date,
+        "reason": travel_plan.reason,
+        "status": travel_plan.status
+    }
 # Get all meetings from PostgreSQL
 @app.get("/api/meetings")
 def get_meetings(db: Session = Depends(get_db)):
@@ -521,3 +547,95 @@ def delete_meeting(meeting_id: int, db: Session = Depends(get_db)):
     db.commit()
 
     return {"message": "Meeting deleted successfully"}
+
+
+# ---------------- TRAVEL PLAN ENDPOINTS ----------------
+
+# Get all travel plans from PostgreSQL
+@app.get("/api/travel-plans")
+def get_travel_plans(db: Session = Depends(get_db)):
+    travel_plans = db.query(TravelPlan).order_by(TravelPlan.id).all()
+
+    return {
+        "travel_plans": [
+            travel_plan_to_dict(plan) for plan in travel_plans
+        ]
+    }
+
+
+# Create a new travel plan
+@app.post("/api/travel-plans")
+def create_travel_plan(
+    travel_plan: TravelPlanCreate,
+    db: Session = Depends(get_db)
+):
+    new_plan = TravelPlan(
+        member=travel_plan.member,
+        destination=travel_plan.destination,
+        departure_date=travel_plan.departure_date,
+        return_date=travel_plan.return_date,
+        reason=travel_plan.reason,
+        status=travel_plan.status
+    )
+
+    db.add(new_plan)
+    db.commit()
+    db.refresh(new_plan)
+
+    return {
+        "message": "Travel plan created successfully",
+        "travel_plan": travel_plan_to_dict(new_plan)
+    }
+
+# Update an existing travel plan
+@app.put("/api/travel-plans/{travel_plan_id}")
+def update_travel_plan(
+    travel_plan_id: int,
+    travel_plan: TravelPlanUpdate,
+    db: Session = Depends(get_db)
+):
+    plan = db.query(TravelPlan).filter(
+        TravelPlan.id == travel_plan_id
+    ).first()
+
+    if not plan:
+        raise HTTPException(
+            status_code=404,
+            detail="Travel plan not found"
+        )
+
+    update_data = travel_plan.dict(exclude_unset=True)
+
+    for key, value in update_data.items():
+        setattr(plan, key, value)
+
+    db.commit()
+    db.refresh(plan)
+
+    return {
+        "message": "Travel plan updated successfully",
+        "travel_plan": travel_plan_to_dict(plan)
+    }
+
+# Delete an existing travel plan
+@app.delete("/api/travel-plans/{travel_plan_id}")
+def delete_travel_plan(
+    travel_plan_id: int,
+    db: Session = Depends(get_db)
+):
+    plan = db.query(TravelPlan).filter(
+        TravelPlan.id == travel_plan_id
+    ).first()
+
+    if not plan:
+        raise HTTPException(
+            status_code=404,
+            detail="Travel plan not found"
+        )
+
+    db.delete(plan)
+    db.commit()
+
+    return {
+        "message": "Travel plan deleted successfully"
+    }

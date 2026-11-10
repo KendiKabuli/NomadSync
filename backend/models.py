@@ -32,3 +32,14 @@ class Meeting(Base):
     meeting_date = Column(String(20), nullable=False)
     meeting_time = Column(String(20), nullable=False)
     participants = Column(Integer, default=2)
+
+class TravelPlan(Base):
+    __tablename__ = "travel_plans"
+
+    id = Column(Integer, primary_key=True, index=True)
+    member = Column(String(100), nullable=False)
+    destination = Column(String(100), nullable=False)
+    departure_date = Column(String(20), nullable=False)
+    return_date = Column(String(20), nullable=False)
+    reason = Column(String(500), nullable=True)
+    status = Column(String(30), default="Upcoming")
