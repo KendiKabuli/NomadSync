@@ -196,8 +196,8 @@ function App() {
   const [editTaskDeadline, setEditTaskDeadline] = useState('')
   const [editTaskPriority, setEditTaskPriority] = useState('Medium')
   const [editTaskAssignedTo, setEditTaskAssignedTo] = useState('')
-  
-  
+
+
 
   const [teamMembers, setTeamMembers] = useState(initialTeam)
   const [memberName, setMemberName] = useState('')
@@ -214,6 +214,7 @@ function App() {
   const [travelDeparture, setTravelDeparture] = useState('')
   const [travelReturn, setTravelReturn] = useState('')
   const [travelReason, setTravelReason] = useState('')
+  const [editingTravelPlanId, setEditingTravelPlanId] = useState(null)
 
   const [handoverNoteList, setHandoverNoteList] = useState(initialHandoverNotes)
   const [handoverMemberId, setHandoverMemberId] = useState('')
@@ -226,410 +227,446 @@ function App() {
 
 
   useEffect(() => {
-  fetch('http://127.0.0.1:8000/api/team')
-    .then((response) => {
-      if (!response.ok) {
-        throw new Error('Failed to fetch team members')
-      }
-      return response.json()
-    })
-    .then((data) => {
-      setTeamMembers(data.team_members)
-    })
-    .catch((error) => {
-      console.error('Error fetching team members:', error)
-    })
-}, [])
+    fetch('http://127.0.0.1:8000/api/team')
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error('Failed to fetch team members')
+        }
+        return response.json()
+      })
+      .then((data) => {
+        setTeamMembers(data.team_members)
+      })
+      .catch((error) => {
+        console.error('Error fetching team members:', error)
+      })
+  }, [])
 
-useEffect(() => {
-  API.get('/tasks')
-    .then((response) => {
-      const tasks = response.data.tasks.map((task) => ({
-        ...task,
-        deadline: task.due_date,
-        assignedTo: task.assigned_to,
-      }))
+  useEffect(() => {
+    fetch('http://127.0.0.1:8000/api/travel-plans')
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error('Failed to fetch travel plans')
+        }
+        return response.json()
+      })
+      .then((data) => {
+        const formattedPlans = data.travel_plans.map((plan) => {
+          const selectedMember = teamMembers.find(
+            (member) => member.name === plan.member
+          )
 
-      setTaskList(tasks)
-      console.log('Tasks loaded from database:', tasks)
-    })
-    .catch((error) => {
-      console.error('Error loading tasks:', error)
-    })
-}, [])
+          return {
+            id: plan.id,
+            memberId: selectedMember?.id || '',
+            memberName: plan.member,
+            homeCountry: selectedMember?.country || '',
+            destination: plan.destination,
+            destinationFlag: countries[plan.destination]?.flag || '🌍',
+            departure: plan.departure_date,
+            returnDate: plan.return_date,
+            reason: plan.reason || '',
+            status: plan.status,
+          }
+        })
 
-// Load meetings from the database
-useEffect(() => {
-  API.get('/meetings')
-    .then((response) => {
-      const meetings = response.data.meetings.map((meeting) => ({
-        ...meeting,
-        date: meeting.meeting_date,
-        time: meeting.meeting_time,
-        people: `${meeting.participants} participants`,
-      }))
+        setTravelPlanList(formattedPlans)
+      })
+      .catch((error) => {
+        console.error('Error fetching travel plans:', error)
+      })
+  }, [teamMembers])
 
-      setMeetingList(meetings)
-      console.log('Meetings loaded from database:', meetings)
-    })
-    .catch((error) => {
-      console.error('Error loading meetings:', error)
-    })
-}, [])
+  useEffect(() => {
+    API.get('/tasks')
+      .then((response) => {
+        const tasks = response.data.tasks.map((task) => ({
+          ...task,
+          deadline: task.due_date,
+          assignedTo: task.assigned_to,
+        }))
+
+        setTaskList(tasks)
+        console.log('Tasks loaded from database:', tasks)
+      })
+      .catch((error) => {
+        console.error('Error loading tasks:', error)
+      })
+  }, [])
+
+  // Load meetings from the database
+  useEffect(() => {
+    API.get('/meetings')
+      .then((response) => {
+        const meetings = response.data.meetings.map((meeting) => ({
+          ...meeting,
+          date: meeting.meeting_date,
+          time: meeting.meeting_time,
+          people: `${meeting.participants} participants`,
+        }))
+
+        setMeetingList(meetings)
+        console.log('Meetings loaded from database:', meetings)
+      })
+      .catch((error) => {
+        console.error('Error loading meetings:', error)
+      })
+  }, [])
 
 
- function handleEditMeeting(meeting) {
-  console.log('Meeting selected for editing:', meeting)
+  function handleEditMeeting(meeting) {
+    console.log('Meeting selected for editing:', meeting)
 
-  setEditingMeetingId(meeting.id)
-  setMeetingTitle(meeting.title)
-  setMeetingDate(meeting.meeting_date || meeting.date)
-  setMeetingTime(meeting.meeting_time || meeting.time)
+    setEditingMeetingId(meeting.id)
+    setMeetingTitle(meeting.title)
+    setMeetingDate(meeting.meeting_date || meeting.date)
+    setMeetingTime(meeting.meeting_time || meeting.time)
 
-  const participantCount =
-    meeting.participants ?? Number.parseInt(meeting.people, 10)
+    const participantCount =
+      meeting.participants ?? Number.parseInt(meeting.people, 10)
 
-  setParticipants(String(participantCount))
-}
-async function handleCreateMeeting(event) {
-  event.preventDefault()
-
-  if (!meetingTitle.trim() || !meetingDate || !meetingTime) {
-    alert('Please fill in all meeting details.')
-    return
+    setParticipants(String(participantCount))
   }
+  async function handleCreateMeeting(event) {
+    event.preventDefault()
 
-  const meetingData = {
-    title: meetingTitle.trim(),
-    meeting_date: meetingDate,
-    meeting_time: meetingTime,
-    participants: Number(participants),
-  }
-
-  try {
-    let response
-
-    if (editingMeetingId) {
-      response = await API.put(
-        `/meetings/${editingMeetingId}`,
-        meetingData
-      )
-    } else {
-      response = await API.post('/meetings', meetingData)
+    if (!meetingTitle.trim() || !meetingDate || !meetingTime) {
+      alert('Please fill in all meeting details.')
+      return
     }
 
-    const savedMeeting = {
-      ...response.data.meeting,
-      date: response.data.meeting.meeting_date,
-      time: response.data.meeting.meeting_time,
-      people: `${response.data.meeting.participants} participants`,
+    const meetingData = {
+      title: meetingTitle.trim(),
+      meeting_date: meetingDate,
+      meeting_time: meetingTime,
+      participants: Number(participants),
     }
 
-    if (editingMeetingId) {
-      setMeetingList((previous) =>
-        previous.map((meeting) =>
-          meeting.id === editingMeetingId ? savedMeeting : meeting
+    try {
+      let response
+
+      if (editingMeetingId) {
+        response = await API.put(
+          `/meetings/${editingMeetingId}`,
+          meetingData
         )
-      )
+      } else {
+        response = await API.post('/meetings', meetingData)
+      }
 
-      alert('Meeting updated successfully!')
-    } else {
-      setMeetingList((previous) => [...previous, savedMeeting])
+      const savedMeeting = {
+        ...response.data.meeting,
+        date: response.data.meeting.meeting_date,
+        time: response.data.meeting.meeting_time,
+        people: `${response.data.meeting.participants} participants`,
+      }
 
-      alert('Meeting created successfully!')
+      if (editingMeetingId) {
+        setMeetingList((previous) =>
+          previous.map((meeting) =>
+            meeting.id === editingMeetingId ? savedMeeting : meeting
+          )
+        )
+
+        alert('Meeting updated successfully!')
+      } else {
+        setMeetingList((previous) => [...previous, savedMeeting])
+
+        alert('Meeting created successfully!')
+      }
+
+      setEditingMeetingId(null)
+      setMeetingTitle('')
+      setMeetingDate('')
+      setMeetingTime('')
+      setParticipants('2')
+
+    } catch (error) {
+      console.error('Error saving meeting:', error)
+      alert('Failed to save meeting. Please try again.')
     }
-
-    setEditingMeetingId(null)
-    setMeetingTitle('')
-    setMeetingDate('')
-    setMeetingTime('')
-    setParticipants('2')
-
-  } catch (error) {
-    console.error('Error saving meeting:', error)
-    alert('Failed to save meeting. Please try again.')
-  }
-}
-
-async function handleDeleteMeeting(meetingId) {
-  const confirmed = window.confirm(
-    'Are you sure you want to delete this meeting?'
-  )
-
-  if (!confirmed) {
-    return
   }
 
-  try {
-    await API.delete(`/meetings/${meetingId}`)
-
-    setMeetingList((previous) =>
-      previous.filter((meeting) => meeting.id !== meetingId)
+  async function handleDeleteMeeting(meetingId) {
+    const confirmed = window.confirm(
+      'Are you sure you want to delete this meeting?'
     )
 
-    alert('Meeting deleted successfully!')
-  } catch (error) {
-    console.error('Error deleting meeting:', error)
-    alert('Failed to delete meeting. Please try again.')
-  }
-}
-
-async function handleCreateTask(event) {
-  event.preventDefault()
-
-  if (!taskTitle.trim() || !taskDeadline) {
-    alert('Please enter a task name and deadline.')
-    return
-  }
-
-  try {
-    const response = await API.post('/tasks', {
-      title: taskTitle.trim(),
-      description: '',
-      assigned_to: taskAssignedTo,
-      due_date: taskDeadline,
-      priority: taskPriority,
-    })
-
-    const newTask = {
-      ...response.data.task,
-      deadline: response.data.task.due_date,
-      assignedTo: response.data.task.assigned_to,
+    if (!confirmed) {
+      return
     }
 
-    setTaskList((previous) => [...previous, newTask])
+    try {
+      await API.delete(`/meetings/${meetingId}`)
 
-    setTaskTitle('')
-    setTaskDeadline('')
-    setTaskPriority('Medium')
-    setTaskAssignedTo('Alex Morgan')
+      setMeetingList((previous) =>
+        previous.filter((meeting) => meeting.id !== meetingId)
+      )
 
-    alert('Task saved successfully!')
-  } catch (error) {
-    console.error('Error creating task:', error)
-    alert('Could not save task. Please check your backend.')
-  }
-}
-
-
-  
-async function toggleTask(index) {
-  const task = taskList[index]
-
-  if (!task || !task.id) {
-    alert('Task ID not found.')
-    return
+      alert('Meeting deleted successfully!')
+    } catch (error) {
+      console.error('Error deleting meeting:', error)
+      alert('Failed to delete meeting. Please try again.')
+    }
   }
 
-  try {
-    const response = await API.put(`/tasks/${task.id}`, {
-      completed: !task.completed,
-    })
+  async function handleCreateTask(event) {
+    event.preventDefault()
 
-    const updatedTask = response.data.task
+    if (!taskTitle.trim() || !taskDeadline) {
+      alert('Please enter a task name and deadline.')
+      return
+    }
 
-    setTaskList((previous) =>
-      previous.map((item) =>
-        item.id === task.id
-          ? {
+    try {
+      const response = await API.post('/tasks', {
+        title: taskTitle.trim(),
+        description: '',
+        assigned_to: taskAssignedTo,
+        due_date: taskDeadline,
+        priority: taskPriority,
+      })
+
+      const newTask = {
+        ...response.data.task,
+        deadline: response.data.task.due_date,
+        assignedTo: response.data.task.assigned_to,
+      }
+
+      setTaskList((previous) => [...previous, newTask])
+
+      setTaskTitle('')
+      setTaskDeadline('')
+      setTaskPriority('Medium')
+      setTaskAssignedTo('Alex Morgan')
+
+      alert('Task saved successfully!')
+    } catch (error) {
+      console.error('Error creating task:', error)
+      alert('Could not save task. Please check your backend.')
+    }
+  }
+
+
+
+  async function toggleTask(index) {
+    const task = taskList[index]
+
+    if (!task || !task.id) {
+      alert('Task ID not found.')
+      return
+    }
+
+    try {
+      const response = await API.put(`/tasks/${task.id}`, {
+        completed: !task.completed,
+      })
+
+      const updatedTask = response.data.task
+
+      setTaskList((previous) =>
+        previous.map((item) =>
+          item.id === task.id
+            ? {
               ...item,
               ...updatedTask,
               deadline: updatedTask.due_date,
               assignedTo: updatedTask.assigned_to,
             }
-          : item
+            : item
+        )
       )
-    )
 
-  } catch (error) {
-    console.error('Error updating task:', error)
-    alert('Could not update task completion status.')
-  }
-}
-
-function handleEditTask(task) {
-  setEditingTaskId(task.id)
-  setEditTaskTitle(task.title)
-  setEditTaskDeadline(task.deadline || task.due_date || '')
-  setEditTaskPriority(task.priority)
-  setEditTaskAssignedTo(task.assignedTo || task.assigned_to)
-}
-
-async function handleUpdateTask(event) {
-  event.preventDefault()
-
-  if (!editTaskTitle.trim() || !editTaskDeadline || !editTaskAssignedTo) {
-    alert('Please fill in all task details.')
-    return
+    } catch (error) {
+      console.error('Error updating task:', error)
+      alert('Could not update task completion status.')
+    }
   }
 
-  try {
-    const response = await API.put(`/tasks/${editingTaskId}`, {
-      title: editTaskTitle.trim(),
-      description: '',
-      assigned_to: editTaskAssignedTo,
-      due_date: editTaskDeadline,
-      priority: editTaskPriority,
-    })
+  function handleEditTask(task) {
+    setEditingTaskId(task.id)
+    setEditTaskTitle(task.title)
+    setEditTaskDeadline(task.deadline || task.due_date || '')
+    setEditTaskPriority(task.priority)
+    setEditTaskAssignedTo(task.assignedTo || task.assigned_to)
+  }
 
-    const updatedTask = response.data.task
+  async function handleUpdateTask(event) {
+    event.preventDefault()
 
-    setTaskList((previous) =>
-      previous.map((task) =>
-        task.id === editingTaskId
-          ? {
+    if (!editTaskTitle.trim() || !editTaskDeadline || !editTaskAssignedTo) {
+      alert('Please fill in all task details.')
+      return
+    }
+
+    try {
+      const response = await API.put(`/tasks/${editingTaskId}`, {
+        title: editTaskTitle.trim(),
+        description: '',
+        assigned_to: editTaskAssignedTo,
+        due_date: editTaskDeadline,
+        priority: editTaskPriority,
+      })
+
+      const updatedTask = response.data.task
+
+      setTaskList((previous) =>
+        previous.map((task) =>
+          task.id === editingTaskId
+            ? {
               ...task,
               ...updatedTask,
               deadline: updatedTask.due_date,
               assignedTo: updatedTask.assigned_to,
             }
-          : task
+            : task
+        )
       )
+
+      setEditingTaskId(null)
+      alert('Task updated successfully!')
+    } catch (error) {
+      console.error('Error updating task:', error)
+      alert('Could not update task. Please try again.')
+    }
+  }
+  async function handleDeleteTask(taskId) {
+    const confirmDelete = window.confirm(
+      'Are you sure you want to delete this task?'
     )
 
-    setEditingTaskId(null)
-    alert('Task updated successfully!')
-  } catch (error) {
-    console.error('Error updating task:', error)
-    alert('Could not update task. Please try again.')
-  }
-}
-async function handleDeleteTask(taskId) {
-  const confirmDelete = window.confirm(
-    'Are you sure you want to delete this task?'
-  )
-
-  if (!confirmDelete) {
-    return
-  }
-
-  try {
-    await API.delete(`/tasks/${taskId}`)
-
-    setTaskList((previous) =>
-      previous.filter((task) => task.id !== taskId)
-    )
-
-    alert('Task deleted successfully!')
-  } catch (error) {
-    console.error('Error deleting task:', error)
-    alert('Could not delete task. Please try again.')
-  }
-}
-
-
-
- function handleEditMember(member) {
-  setEditingMemberId(member.id)
-  setEditMemberName(member.name)
-  setEditMemberEmail(member.email)
-  setEditMemberCountry(member.country)
-}
-async function handleUpdateMember(event) {
-  event.preventDefault()
-
-  if (!editMemberName.trim() || !editMemberEmail.trim()) {
-    alert('Please enter the member name and email.')
-    return
-  }
-
-  try {
-    const response = await API.put(`/team/${editingMemberId}`, {
-      name: editMemberName.trim(),
-      email: editMemberEmail.trim(),
-      country: editMemberCountry,
-    })
-
-    const updatedMember = response.data.member
-
-    setTeamMembers((previous) =>
-      previous.map((member) =>
-        member.id === editingMemberId ? updatedMember : member
-      )
-    )
-
-    setEditingMemberId(null)
-    alert('Team member updated successfully!')
-  } catch (error) {
-    console.error('Error updating team member:', error)
-    alert('Could not update team member. Please try again.')
-  }
-}
-async function handleAddMember(event) {
-  event.preventDefault()
-
-  if (!memberName.trim() || !memberEmail.trim()) {
-    alert('Please enter the member name and email.')
-    return
-  }
-
-  try {
-    const response = await fetch('http://127.0.0.1:8000/api/team', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        name: memberName.trim(),
-        email: memberEmail.trim(),
-        country: memberCountry,
-      }),
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to add team member')
+    if (!confirmDelete) {
+      return
     }
 
-    const data = await response.json()
+    try {
+      await API.delete(`/tasks/${taskId}`)
 
-    setTeamMembers((previous) => [
-      ...previous,
-      data.team_member,
-    ])
+      setTaskList((previous) =>
+        previous.filter((task) => task.id !== taskId)
+      )
 
-    setMemberName('')
-    setMemberEmail('')
-    setMemberCountry('Kenya')
-
-    alert('Team member added successfully!')
-  } catch (error) {
-    console.error('Error adding team member:', error)
-    alert('Could not add team member. Please check that the backend is running and try again.')
+      alert('Task deleted successfully!')
+    } catch (error) {
+      console.error('Error deleting task:', error)
+      alert('Could not delete task. Please try again.')
+    }
   }
-}
+
+
+
+  function handleEditMember(member) {
+    setEditingMemberId(member.id)
+    setEditMemberName(member.name)
+    setEditMemberEmail(member.email)
+    setEditMemberCountry(member.country)
+  }
+  async function handleUpdateMember(event) {
+    event.preventDefault()
+
+    if (!editMemberName.trim() || !editMemberEmail.trim()) {
+      alert('Please enter the member name and email.')
+      return
+    }
+
+    try {
+      const response = await API.put(`/team/${editingMemberId}`, {
+        name: editMemberName.trim(),
+        email: editMemberEmail.trim(),
+        country: editMemberCountry,
+      })
+
+      const updatedMember = response.data.member
+
+      setTeamMembers((previous) =>
+        previous.map((member) =>
+          member.id === editingMemberId ? updatedMember : member
+        )
+      )
+
+      setEditingMemberId(null)
+      alert('Team member updated successfully!')
+    } catch (error) {
+      console.error('Error updating team member:', error)
+      alert('Could not update team member. Please try again.')
+    }
+  }
+  async function handleAddMember(event) {
+    event.preventDefault()
+
+    if (!memberName.trim() || !memberEmail.trim()) {
+      alert('Please enter the member name and email.')
+      return
+    }
+
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/team', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: memberName.trim(),
+          email: memberEmail.trim(),
+          country: memberCountry,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to add team member')
+      }
+
+      const data = await response.json()
+
+      setTeamMembers((previous) => [
+        ...previous,
+        data.team_member,
+      ])
+
+      setMemberName('')
+      setMemberEmail('')
+      setMemberCountry('Kenya')
+
+      alert('Team member added successfully!')
+    } catch (error) {
+      console.error('Error adding team member:', error)
+      alert('Could not add team member. Please check that the backend is running and try again.')
+    }
+  }
 
 
   async function handleRemoveMember(memberId) {
-  const member = teamMembers.find((item) => item.id === memberId)
+    const member = teamMembers.find((item) => item.id === memberId)
 
-  if (!member) return
+    if (!member) return
 
-  const confirmed = window.confirm(
-    `Are you sure you want to remove ${member.name}?`
-  )
-
-  if (!confirmed) return
-
-  try {
-    await API.delete(`/team/${memberId}`)
-
-    setTeamMembers((previous) =>
-      previous.filter((item) => item.id !== memberId)
+    const confirmed = window.confirm(
+      `Are you sure you want to remove ${member.name}?`
     )
 
-    alert('Team member removed successfully!')
-  } catch (error) {
-    console.error('Error removing team member:', error)
+    if (!confirmed) return
 
-    const message =
-      error.response?.data?.detail ||
-      'Could not remove team member. Please try again.'
+    try {
+      await API.delete(`/team/${memberId}`)
 
-    alert(message)
+      setTeamMembers((previous) =>
+        previous.filter((item) => item.id !== memberId)
+      )
+
+      alert('Team member removed successfully!')
+    } catch (error) {
+      console.error('Error removing team member:', error)
+
+      const message =
+        error.response?.data?.detail ||
+        'Could not remove team member. Please try again.'
+
+      alert(message)
+    }
   }
-}
 
-  function handleCreateTravelPlan(event) {
+
+  async function handleCreateTravelPlan(event) {
     event.preventDefault()
 
     if (
@@ -656,39 +693,112 @@ async function handleAddMember(event) {
       return
     }
 
-    setTravelPlanList((previous) => [
-      ...previous,
-      {
-        id: Date.now(),
-        memberId: selectedMember.id,
-        memberName: selectedMember.name,
-        homeCountry: selectedMember.country,
+    try {
+      const travelPlanData = {
+        member: selectedMember.name,
         destination: travelDestination,
-        destinationFlag: countries[travelDestination]?.flag || '🌍',
-        departure: travelDeparture,
-        returnDate: travelReturn,
+        departure_date: travelDeparture,
+        return_date: travelReturn,
         reason: travelReason.trim(),
-      },
-    ])
+        status: 'Upcoming',
+      }
 
-    setTravelMemberId('')
-    setTravelDestination('Thailand')
-    setTravelDeparture('')
-    setTravelReturn('')
-    setTravelReason('')
+      if (editingTravelPlanId !== null) {
+        const response = await API.put(
+          `/travel-plans/${editingTravelPlanId}`,
+          travelPlanData
+        )
 
-    alert('Travel plan added successfully!')
+        const updatedPlan = response.data.travel_plan
+
+        setTravelPlanList((previous) =>
+          previous.map((plan) =>
+            plan.id === editingTravelPlanId
+              ? {
+                ...plan,
+                memberId: selectedMember.id,
+                memberName: selectedMember.name,
+                homeCountry: selectedMember.country,
+                destination: updatedPlan.destination,
+                destinationFlag:
+                  countries[updatedPlan.destination]?.flag || '🌍',
+                departure: updatedPlan.departure_date,
+                returnDate: updatedPlan.return_date,
+                reason: updatedPlan.reason,
+                status: updatedPlan.status,
+              }
+              : plan
+          )
+        )
+
+        alert('Travel plan updated successfully!')
+      } else {
+        const response = await API.post('/travel-plans', travelPlanData)
+
+        const savedPlan = response.data.travel_plan
+
+        setTravelPlanList((previous) => [
+          ...previous,
+          {
+            id: savedPlan.id,
+            memberId: selectedMember.id,
+            memberName: selectedMember.name,
+            homeCountry: selectedMember.country,
+            destination: savedPlan.destination,
+            destinationFlag:
+              countries[savedPlan.destination]?.flag || '🌍',
+            departure: savedPlan.departure_date,
+            returnDate: savedPlan.return_date,
+            reason: savedPlan.reason,
+            status: savedPlan.status,
+          },
+        ])
+
+        alert('Travel plan added successfully!')
+      }
+
+      setEditingTravelPlanId(null)
+      setTravelMemberId('')
+      setTravelDestination('Thailand')
+      setTravelDeparture('')
+      setTravelReturn('')
+      setTravelReason('')
+    } catch (error) {
+      console.error('Error saving travel plan:', error)
+      alert('Failed to save travel plan. Please try again.')
+    }
   }
 
-  function handleRemoveTravelPlan(planId) {
+
+  function handleEditTravelPlan(plan) {
+    setEditingTravelPlanId(plan.id)
+    setTravelMemberId(String(plan.memberId))
+    setTravelDestination(plan.destination)
+    setTravelDeparture(plan.departure)
+    setTravelReturn(plan.returnDate)
+    setTravelReason(plan.reason)
+  }
+
+  async function handleRemoveTravelPlan(planId) {
     const confirmed = window.confirm(
       'Are you sure you want to remove this travel plan?'
     )
 
-    if (confirmed) {
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      await API.delete(`/travel-plans/${planId}`)
+
       setTravelPlanList((previous) =>
         previous.filter((plan) => plan.id !== planId)
       )
+
+      alert('Travel plan removed successfully!')
+    } catch (error) {
+      console.error('Error deleting travel plan:', error)
+      alert('Failed to remove travel plan. Please try again.')
     }
   }
 
@@ -738,8 +848,8 @@ async function handleAddMember(event) {
 
     const selectedTravelPlan = handoverTravelPlanId
       ? travelPlanList.find(
-          (plan) => plan.id === Number(handoverTravelPlanId)
-        )
+        (plan) => plan.id === Number(handoverTravelPlanId)
+      )
       : null
 
     if (
@@ -845,9 +955,9 @@ async function handleAddMember(event) {
             >
               {page === 'Dashboard' ? '▦' :
                 page === 'Meetings' ? '◷' :
-                page === 'My Team' ? '♧' :
-                page === 'Travel Plans' ? '✈' :
-                page === 'Tasks' ? '✓' : '☷'}{' '}
+                  page === 'My Team' ? '♧' :
+                    page === 'Travel Plans' ? '✈' :
+                      page === 'Tasks' ? '✓' : '☷'}{' '}
               {page}
             </button>
           ))}
@@ -1032,13 +1142,12 @@ async function handleAddMember(event) {
                   </div>
 
                   <span
-                    className={`status ${
-                      task.completed
-                        ? 'completed'
-                        : task.priority === 'High'
-                          ? 'in-progress'
-                          : 'pending'
-                    }`}
+                    className={`status ${task.completed
+                      ? 'completed'
+                      : task.priority === 'High'
+                        ? 'in-progress'
+                        : 'pending'
+                      }`}
                   >
                     {task.completed ? 'Completed' : 'Pending'}
                   </span>
@@ -1128,33 +1237,33 @@ async function handleAddMember(event) {
             </div>
 
             {meetingList.map((meeting, index) => (
-  <div className="meeting-row" key={meeting.id || index}>
-    <div className="calendar-icon">▦</div>
+              <div className="meeting-row" key={meeting.id || index}>
+                <div className="calendar-icon">▦</div>
 
-    <div className="meeting-info">
-      <strong>{meeting.title}</strong>
-      <span>{meeting.date}</span>
-      <small>{meeting.people}</small>
-    </div>
+                <div className="meeting-info">
+                  <strong>{meeting.title}</strong>
+                  <span>{meeting.date}</span>
+                  <small>{meeting.people}</small>
+                </div>
 
-    <div className="meeting-time">{meeting.time}</div>
+                <div className="meeting-time">{meeting.time}</div>
 
-    <button
-      type="button"
-      className="secondary-button"
-      onClick={() => handleEditMeeting(meeting)}
-    >
-      Edit
-    </button>
-    <button
-  type="button"
-  className="secondary-button"
-  onClick={() => handleDeleteMeeting(meeting.id)}
->
-  Delete
-</button>
-  </div>
-))}
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => handleEditMeeting(meeting)}
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => handleDeleteMeeting(meeting.id)}
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
           </section>
         </main>
       ) : activePage === 'Tasks' ? (
@@ -1177,115 +1286,115 @@ async function handleAddMember(event) {
               </div>
             </div>
 
-{editingTaskId !== null && (
-  <form className="meeting-form" onSubmit={handleUpdateTask}>
-    <h3>Edit Task</h3>
+            {editingTaskId !== null && (
+              <form className="meeting-form" onSubmit={handleUpdateTask}>
+                <h3>Edit Task</h3>
 
-    <label htmlFor="editTaskTitle">Task name</label>
-    <input
-      id="editTaskTitle"
-      type="text"
-      value={editTaskTitle}
-      onChange={(event) => setEditTaskTitle(event.target.value)}
-      required
-    />
+                <label htmlFor="editTaskTitle">Task name</label>
+                <input
+                  id="editTaskTitle"
+                  type="text"
+                  value={editTaskTitle}
+                  onChange={(event) => setEditTaskTitle(event.target.value)}
+                  required
+                />
 
-    <label htmlFor="editTaskDeadline">Deadline</label>
-    <input
-      id="editTaskDeadline"
-      type="date"
-      value={editTaskDeadline}
-      onChange={(event) => setEditTaskDeadline(event.target.value)}
-      required
-    />
+                <label htmlFor="editTaskDeadline">Deadline</label>
+                <input
+                  id="editTaskDeadline"
+                  type="date"
+                  value={editTaskDeadline}
+                  onChange={(event) => setEditTaskDeadline(event.target.value)}
+                  required
+                />
 
-    <label htmlFor="editTaskAssignedTo">Assigned to</label>
-    <select
-      id="editTaskAssignedTo"
-      value={editTaskAssignedTo}
-      onChange={(event) => setEditTaskAssignedTo(event.target.value)}
-      required
-    >
-      {teamMembers.map((member) => (
-        <option key={member.id} value={member.name}>
-          {member.name}
-        </option>
-      ))}
-    </select>
+                <label htmlFor="editTaskAssignedTo">Assigned to</label>
+                <select
+                  id="editTaskAssignedTo"
+                  value={editTaskAssignedTo}
+                  onChange={(event) => setEditTaskAssignedTo(event.target.value)}
+                  required
+                >
+                  {teamMembers.map((member) => (
+                    <option key={member.id} value={member.name}>
+                      {member.name}
+                    </option>
+                  ))}
+                </select>
 
-    <label htmlFor="editTaskPriority">Priority</label>
-    <select
-      id="editTaskPriority"
-      value={editTaskPriority}
-      onChange={(event) => setEditTaskPriority(event.target.value)}
-    >
-      <option value="Low">Low</option>
-      <option value="Medium">Medium</option>
-      <option value="High">High</option>
-    </select>
+                <label htmlFor="editTaskPriority">Priority</label>
+                <select
+                  id="editTaskPriority"
+                  value={editTaskPriority}
+                  onChange={(event) => setEditTaskPriority(event.target.value)}
+                >
+                  <option value="Low">Low</option>
+                  <option value="Medium">Medium</option>
+                  <option value="High">High</option>
+                </select>
 
-    <button type="submit" className="primary-button">
-      {editingMeetingId ? 'Update Meeting' : '+ Create Meeting'}
-    </button>
+                <button type="submit" className="primary-button">
+                  {editingMeetingId ? 'Update Meeting' : '+ Create Meeting'}
+                </button>
 
-    <button
-      type="button"
-      className="secondary-button"
-      onClick={() => setEditingTaskId(null)}
-    >
-      Cancel
-    </button>
-  </form>
-)}
-<form className="meeting-form" onSubmit={handleCreateTask}>
-  <label htmlFor="taskTitle">Task name</label>
-  <input
-    id="taskTitle"
-    type="text"
-    placeholder="e.g. Prepare weekly report"
-    value={taskTitle}
-    onChange={(event) => setTaskTitle(event.target.value)}
-    required
-  />
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setEditingTaskId(null)}
+                >
+                  Cancel
+                </button>
+              </form>
+            )}
+            <form className="meeting-form" onSubmit={handleCreateTask}>
+              <label htmlFor="taskTitle">Task name</label>
+              <input
+                id="taskTitle"
+                type="text"
+                placeholder="e.g. Prepare weekly report"
+                value={taskTitle}
+                onChange={(event) => setTaskTitle(event.target.value)}
+                required
+              />
 
-  <label htmlFor="taskDeadline">Deadline</label>
-  <input
-    id="taskDeadline"
-    type="date"
-    value={taskDeadline}
-    onChange={(event) => setTaskDeadline(event.target.value)}
-    required
-  />
+              <label htmlFor="taskDeadline">Deadline</label>
+              <input
+                id="taskDeadline"
+                type="date"
+                value={taskDeadline}
+                onChange={(event) => setTaskDeadline(event.target.value)}
+                required
+              />
 
-  <label htmlFor="taskAssignedTo">Assigned to</label>
-  <select
-    id="taskAssignedTo"
-    value={taskAssignedTo}
-    onChange={(event) => setTaskAssignedTo(event.target.value)}
-    required
-  >
-    {teamMembers.map((member) => (
-      <option key={member.id} value={member.name}>
-        {member.name}
-      </option>
-    ))}
-  </select>
+              <label htmlFor="taskAssignedTo">Assigned to</label>
+              <select
+                id="taskAssignedTo"
+                value={taskAssignedTo}
+                onChange={(event) => setTaskAssignedTo(event.target.value)}
+                required
+              >
+                {teamMembers.map((member) => (
+                  <option key={member.id} value={member.name}>
+                    {member.name}
+                  </option>
+                ))}
+              </select>
 
-  <label htmlFor="taskPriority">Priority</label>
-  <select
-    id="taskPriority"
-    value={taskPriority}
-    onChange={(event) => setTaskPriority(event.target.value)}
-  >
-    <option value="Low">Low</option>
-    <option value="Medium">Medium</option>
-    <option value="High">High</option>
-  </select>
+              <label htmlFor="taskPriority">Priority</label>
+              <select
+                id="taskPriority"
+                value={taskPriority}
+                onChange={(event) => setTaskPriority(event.target.value)}
+              >
+                <option value="Low">Low</option>
+                <option value="Medium">Medium</option>
+                <option value="High">High</option>
+              </select>
 
-  <button type="submit" className="primary-button">
-    + Add Task
-  </button>
-</form>
+              <button type="submit" className="primary-button">
+                + Add Task
+              </button>
+            </form>
 
           </section>
 
@@ -1300,48 +1409,48 @@ async function handleAddMember(event) {
               </div>
             </div>
 
-   
-{taskList.map((task, index) => (
-  <div className="meeting-row" key={task.id}>
-    <input
-      type="checkbox"
-      checked={task.completed}
-      onChange={() => toggleTask(index)}
-      aria-label={`Mark ${task.title} as completed`}
-    />
 
-    <div className="meeting-info">
-      <strong
-        style={{
-          textDecoration: task.completed ? 'line-through' : 'none',
-        }}
-      >
-        {task.title}
-      </strong>
-      <span>Deadline: {task.deadline}</span>
-      <span>Assigned to: {task.assignedTo || task.assigned_to}</span>
-      <small>Priority: {task.priority}</small>
-    </div>
+            {taskList.map((task, index) => (
+              <div className="meeting-row" key={task.id}>
+                <input
+                  type="checkbox"
+                  checked={task.completed}
+                  onChange={() => toggleTask(index)}
+                  aria-label={`Mark ${task.title} as completed`}
+                />
 
-    <span>{task.completed ? 'Completed' : 'Pending'}</span>
+                <div className="meeting-info">
+                  <strong
+                    style={{
+                      textDecoration: task.completed ? 'line-through' : 'none',
+                    }}
+                  >
+                    {task.title}
+                  </strong>
+                  <span>Deadline: {task.deadline}</span>
+                  <span>Assigned to: {task.assignedTo || task.assigned_to}</span>
+                  <small>Priority: {task.priority}</small>
+                </div>
 
-        <button
-      type="button"
-      className="secondary-button"
-      onClick={() => handleEditTask(task)}
-    >
-      Edit
-    </button>
+                <span>{task.completed ? 'Completed' : 'Pending'}</span>
 
-    <button
-      type="button"
-      className="secondary-button"
-      onClick={() => handleDeleteTask(task.id)}
-    >
-      Delete
-    </button>
-  </div>
-))}
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => handleEditTask(task)}
+                >
+                  Edit
+                </button>
+
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => handleDeleteTask(task.id)}
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
 
           </section>
         </main>
@@ -1372,62 +1481,62 @@ async function handleAddMember(event) {
               <small>Different countries represented</small>
             </div>
           </section>
-{editingMemberId !== null && (
-  <section className="panel">
-    <div className="panel-heading">
-      <div>
-        <h3>Edit Team Member</h3>
-        <p>Update this team member's information.</p>
-      </div>
-    </div>
+          {editingMemberId !== null && (
+            <section className="panel">
+              <div className="panel-heading">
+                <div>
+                  <h3>Edit Team Member</h3>
+                  <p>Update this team member's information.</p>
+                </div>
+              </div>
 
-    <form className="meeting-form" onSubmit={handleUpdateMember}>
-      <label htmlFor="editMemberName">Full name</label>
-      <input
-        id="editMemberName"
-        type="text"
-        value={editMemberName}
-        onChange={(event) => setEditMemberName(event.target.value)}
-        required
-      />
+              <form className="meeting-form" onSubmit={handleUpdateMember}>
+                <label htmlFor="editMemberName">Full name</label>
+                <input
+                  id="editMemberName"
+                  type="text"
+                  value={editMemberName}
+                  onChange={(event) => setEditMemberName(event.target.value)}
+                  required
+                />
 
-      <label htmlFor="editMemberEmail">Email address</label>
-      <input
-        id="editMemberEmail"
-        type="email"
-        value={editMemberEmail}
-        onChange={(event) => setEditMemberEmail(event.target.value)}
-        required
-      />
+                <label htmlFor="editMemberEmail">Email address</label>
+                <input
+                  id="editMemberEmail"
+                  type="email"
+                  value={editMemberEmail}
+                  onChange={(event) => setEditMemberEmail(event.target.value)}
+                  required
+                />
 
-      <label htmlFor="editMemberCountry">Country</label>
-      <select
-        id="editMemberCountry"
-        value={editMemberCountry}
-        onChange={(event) => setEditMemberCountry(event.target.value)}
-        required
-      >
-        {worldCountries.map((country) => (
-          <option key={country} value={country}>
-            {country}
-          </option>
-        ))}
-      </select>
+                <label htmlFor="editMemberCountry">Country</label>
+                <select
+                  id="editMemberCountry"
+                  value={editMemberCountry}
+                  onChange={(event) => setEditMemberCountry(event.target.value)}
+                  required
+                >
+                  {worldCountries.map((country) => (
+                    <option key={country} value={country}>
+                      {country}
+                    </option>
+                  ))}
+                </select>
 
-      <button type="submit" className="primary-button">
-        Save Changes
-      </button>
+                <button type="submit" className="primary-button">
+                  Save Changes
+                </button>
 
-      <button
-        type="button"
-        className="secondary-button"
-        onClick={() => setEditingMemberId(null)}
-      >
-        Cancel
-      </button>
-    </form>
-  </section>
-)}
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setEditingMemberId(null)}
+                >
+                  Cancel
+                </button>
+              </form>
+            </section>
+          )}
           <section className="panel">
             <div className="panel-heading">
               <div>
@@ -1543,10 +1652,10 @@ async function handleAddMember(event) {
                         className="secondary-button"
                         onClick={() => handleEditMember(member)}
                       >
-                         Edit Member
-                       </button>
+                        Edit Member
+                      </button>
 
-                      
+
                       <button
                         type="button"
                         className="remove-member-button"
@@ -1645,7 +1754,9 @@ async function handleAddMember(event) {
               />
 
               <button type="submit" className="primary-button">
-                + Add Travel Plan
+                {editingTravelPlanId !== null
+                  ? 'Update Travel Plan'
+                  : '+ Add Travel Plan'}
               </button>
             </form>
           </section>
@@ -1692,14 +1803,25 @@ async function handleAddMember(event) {
                       <small>Reason: {plan.reason}</small>
                       <small>Status: {status}</small>
                     </div>
+                    <div>
+                      <button
+                        type="button"
+                        className="text-button"
+                        onClick={() => handleEditTravelPlan(plan)}
+                      >
+                        Edit
+                      </button>
 
-                    <button
-                      type="button"
-                      className="text-button"
-                      onClick={() => handleRemoveTravelPlan(plan.id)}
-                    >
-                      Remove
-                    </button>
+                      <button
+                        type="button"
+                        className="text-button"
+                        onClick={() => handleRemoveTravelPlan(plan.id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+
+
                   </div>
                 )
               })
@@ -1882,8 +2004,8 @@ async function handleAddMember(event) {
               handoverNoteList.map((note) => {
                 const linkedTravelPlan = note.travelPlanId
                   ? travelPlanList.find(
-                      (plan) => plan.id === Number(note.travelPlanId)
-                    )
+                    (plan) => plan.id === Number(note.travelPlanId)
+                  )
                   : null
 
                 const travelDeparture =
@@ -1975,13 +2097,12 @@ async function handleAddMember(event) {
                       )}
 
                       <span
-                        className={`status ${
-                          note.completed
-                            ? 'completed'
-                            : isOverdue
-                              ? 'in-progress'
-                              : 'pending'
-                        }`}
+                        className={`status ${note.completed
+                          ? 'completed'
+                          : isOverdue
+                            ? 'in-progress'
+                            : 'pending'
+                          }`}
                       >
                         {note.completed
                           ? 'Completed'
@@ -2142,122 +2263,122 @@ async function handleAddMember(event) {
               </div>
             </section>
 
-       <section className="panel" style={{ marginTop: '24px' }}>
-  <div className="panel-heading">
-    <div>
-      <h3>Notification Preferences 🔔</h3>
-      <p>Choose which workspace updates you want to enable.</p>
-    </div>
-  </div>
+            <section className="panel" style={{ marginTop: '24px' }}>
+              <div className="panel-heading">
+                <div>
+                  <h3>Notification Preferences 🔔</h3>
+                  <p>Choose which workspace updates you want to enable.</p>
+                </div>
+              </div>
 
-  <div
-    className="settings-notifications"
-    style={{
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '20px',
-      marginTop: '24px',
-    }}
-  >
-    <label
-      className="settings-checkbox"
-      style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: '12px',
-        paddingBottom: '16px',
-        borderBottom: '1px solid #E8EAF0',
-        cursor: 'pointer',
-      }}
-    >
-      <input
-        type="checkbox"
-        name="meetingNotifications"
-        checked={settings.meetingNotifications}
-        onChange={handleSettingsChange}
-        style={{ marginTop: '4px' }}
-      />
-      <span style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        <strong>Meeting notifications</strong>
-        <small>Updates about team meetings and schedules.</small>
-      </span>
-    </label>
+              <div
+                className="settings-notifications"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '20px',
+                  marginTop: '24px',
+                }}
+              >
+                <label
+                  className="settings-checkbox"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '12px',
+                    paddingBottom: '16px',
+                    borderBottom: '1px solid #E8EAF0',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    name="meetingNotifications"
+                    checked={settings.meetingNotifications}
+                    onChange={handleSettingsChange}
+                    style={{ marginTop: '4px' }}
+                  />
+                  <span style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <strong>Meeting notifications</strong>
+                    <small>Updates about team meetings and schedules.</small>
+                  </span>
+                </label>
 
-    <label
-      className="settings-checkbox"
-      style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: '12px',
-        paddingBottom: '16px',
-        borderBottom: '1px solid #E8EAF0',
-        cursor: 'pointer',
-      }}
-    >
-      <input
-        type="checkbox"
-        name="taskNotifications"
-        checked={settings.taskNotifications}
-        onChange={handleSettingsChange}
-        style={{ marginTop: '4px' }}
-      />
-      <span style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        <strong>Task notifications</strong>
-        <small>Reminders about tasks and deadlines.</small>
-      </span>
-    </label>
+                <label
+                  className="settings-checkbox"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '12px',
+                    paddingBottom: '16px',
+                    borderBottom: '1px solid #E8EAF0',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    name="taskNotifications"
+                    checked={settings.taskNotifications}
+                    onChange={handleSettingsChange}
+                    style={{ marginTop: '4px' }}
+                  />
+                  <span style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <strong>Task notifications</strong>
+                    <small>Reminders about tasks and deadlines.</small>
+                  </span>
+                </label>
 
-    <label
-      className="settings-checkbox"
-      style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: '12px',
-        paddingBottom: '16px',
-        borderBottom: '1px solid #E8EAF0',
-        cursor: 'pointer',
-      }}
-    >
-      <input
-        type="checkbox"
-        name="handoverNotifications"
-        checked={settings.handoverNotifications}
-        onChange={handleSettingsChange}
-        style={{ marginTop: '4px' }}
-      />
-      <span style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        <strong>Handover notifications</strong>
-        <small>
-          Updates about assigned handovers and responsibilities.
-        </small>
-      </span>
-    </label>
+                <label
+                  className="settings-checkbox"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '12px',
+                    paddingBottom: '16px',
+                    borderBottom: '1px solid #E8EAF0',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    name="handoverNotifications"
+                    checked={settings.handoverNotifications}
+                    onChange={handleSettingsChange}
+                    style={{ marginTop: '4px' }}
+                  />
+                  <span style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <strong>Handover notifications</strong>
+                    <small>
+                      Updates about assigned handovers and responsibilities.
+                    </small>
+                  </span>
+                </label>
 
-    <label
-      className="settings-checkbox"
-      style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: '12px',
-        cursor: 'pointer',
-      }}
-    >
-      <input
-        type="checkbox"
-        name="travelNotifications"
-        checked={settings.travelNotifications}
-        onChange={handleSettingsChange}
-        style={{ marginTop: '4px' }}
-      />
-      <span style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        <strong>Travel notifications</strong>
-        <small>
-          Updates about team travel plans and destination changes.
-        </small>
-      </span>
-    </label>
-  </div>
-</section>
+                <label
+                  className="settings-checkbox"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '12px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    name="travelNotifications"
+                    checked={settings.travelNotifications}
+                    onChange={handleSettingsChange}
+                    style={{ marginTop: '4px' }}
+                  />
+                  <span style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <strong>Travel notifications</strong>
+                    <small>
+                      Updates about team travel plans and destination changes.
+                    </small>
+                  </span>
+                </label>
+              </div>
+            </section>
 
             <section className="panel" style={{ marginTop: '24px' }}>
               <div className="panel-heading">
