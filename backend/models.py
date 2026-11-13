@@ -3,6 +3,7 @@ from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
 from database import Base
 
 
+
 class TeamMember(Base):
     __tablename__ = "team_members"
 
@@ -10,6 +11,10 @@ class TeamMember(Base):
     name = Column(String(100), nullable=False)
     email = Column(String(150), nullable=False, unique=True)
     country = Column(String(100), nullable=False)
+    timezone = Column(String(100), nullable=True)
+    preferred_start_time = Column(String(10), nullable=True)
+    preferred_end_time = Column(String(10), nullable=True)
+
 
 
 class Task(Base):

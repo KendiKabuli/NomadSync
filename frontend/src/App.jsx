@@ -208,6 +208,16 @@ function App() {
   const [editMemberEmail, setEditMemberEmail] = useState('')
   const [editMemberCountry, setEditMemberCountry] = useState('Kenya')
 
+  const [editMemberTimezone, setEditMemberTimezone] = useState('Africa/Nairobi')
+  const [editMemberStartTime, setEditMemberStartTime] = useState('09:00')
+  const [editMemberEndTime, setEditMemberEndTime] = useState('17:00')
+
+  const [memberTimezone, setMemberTimezone] = useState('Africa/Nairobi')
+  const [memberStartTime, setMemberStartTime] = useState('09:00')
+  const [memberEndTime, setMemberEndTime] = useState('17:00')
+
+
+
   const [travelPlanList, setTravelPlanList] = useState([])
   const [travelMemberId, setTravelMemberId] = useState('')
   const [travelDestination, setTravelDestination] = useState('Thailand')
@@ -581,12 +591,18 @@ function App() {
 
 
 
+
   function handleEditMember(member) {
     setEditingMemberId(member.id)
     setEditMemberName(member.name)
     setEditMemberEmail(member.email)
     setEditMemberCountry(member.country)
+    setEditMemberTimezone(member.timezone || 'Africa/Nairobi')
+    setEditMemberStartTime(member.preferred_start_time || '09:00')
+    setEditMemberEndTime(member.preferred_end_time || '17:00')
   }
+
+
   async function handleUpdateMember(event) {
     event.preventDefault()
 
@@ -600,6 +616,9 @@ function App() {
         name: editMemberName.trim(),
         email: editMemberEmail.trim(),
         country: editMemberCountry,
+        timezone: editMemberTimezone,
+        preferred_start_time: editMemberStartTime,
+        preferred_end_time: editMemberEndTime,
       })
 
       const updatedMember = response.data.member
@@ -617,6 +636,7 @@ function App() {
       alert('Could not update team member. Please try again.')
     }
   }
+
   async function handleAddMember(event) {
     event.preventDefault()
 
@@ -635,6 +655,9 @@ function App() {
           name: memberName.trim(),
           email: memberEmail.trim(),
           country: memberCountry,
+          timezone: memberTimezone,
+          preferred_start_time: memberStartTime,
+          preferred_end_time: memberEndTime,
         }),
       })
 
@@ -652,6 +675,9 @@ function App() {
       setMemberName('')
       setMemberEmail('')
       setMemberCountry('Kenya')
+      setMemberTimezone('Africa/Nairobi')
+      setMemberStartTime('09:00')
+      setMemberEndTime('17:00')
 
       alert('Team member added successfully!')
     } catch (error) {
@@ -659,6 +685,7 @@ function App() {
       alert('Could not add team member. Please check that the backend is running and try again.')
     }
   }
+
 
 
   async function handleRemoveMember(memberId) {
@@ -1662,11 +1689,46 @@ function App() {
                       {country}
                     </option>
                   ))}
+
                 </select>
+
+                <label htmlFor="editMemberTimezone">Time zone</label>
+                <select
+                  id="editMemberTimezone"
+                  value={editMemberTimezone}
+                  onChange={(event) => setEditMemberTimezone(event.target.value)}
+                  required
+                >
+                  <option value="Africa/Nairobi">Africa/Nairobi (Kenya)</option>
+                  <option value="Europe/London">Europe/London (United Kingdom)</option>
+                  <option value="Asia/Bangkok">Asia/Bangkok (Thailand)</option>
+                  <option value="Europe/Amsterdam">Europe/Amsterdam (Netherlands)</option>
+                  <option value="Africa/Johannesburg">Africa/Johannesburg (South Africa)</option>
+                  <option value="Asia/Ho_Chi_Minh">Asia/Ho_Chi_Minh (Vietnam)</option>
+                </select>
+
+                <label htmlFor="editMemberStartTime">Preferred meeting start time</label>
+                <input
+                  id="editMemberStartTime"
+                  type="time"
+                  value={editMemberStartTime}
+                  onChange={(event) => setEditMemberStartTime(event.target.value)}
+                  required
+                />
+
+                <label htmlFor="editMemberEndTime">Preferred meeting end time</label>
+                <input
+                  id="editMemberEndTime"
+                  type="time"
+                  value={editMemberEndTime}
+                  onChange={(event) => setEditMemberEndTime(event.target.value)}
+                  required
+                />
 
                 <button type="submit" className="primary-button">
                   Save Changes
                 </button>
+
 
                 <button
                   type="button"
@@ -1719,11 +1781,46 @@ function App() {
                     {countries[country].flag} {country}
                   </option>
                 ))}
+
               </select>
+
+              <label htmlFor="memberTimezone">Time zone</label>
+              <select
+                id="memberTimezone"
+                value={memberTimezone}
+                onChange={(event) => setMemberTimezone(event.target.value)}
+                required
+              >
+                <option value="Africa/Nairobi">Africa/Nairobi (Kenya)</option>
+                <option value="Europe/London">Europe/London (United Kingdom)</option>
+                <option value="Asia/Bangkok">Asia/Bangkok (Thailand)</option>
+                <option value="Europe/Amsterdam">Europe/Amsterdam (Netherlands)</option>
+                <option value="Africa/Johannesburg">Africa/Johannesburg (South Africa)</option>
+                <option value="Asia/Ho_Chi_Minh">Asia/Ho_Chi_Minh (Vietnam)</option>
+              </select>
+
+              <label htmlFor="memberStartTime">Preferred meeting start time</label>
+              <input
+                id="memberStartTime"
+                type="time"
+                value={memberStartTime}
+                onChange={(event) => setMemberStartTime(event.target.value)}
+                required
+              />
+
+              <label htmlFor="memberEndTime">Preferred meeting end time</label>
+              <input
+                id="memberEndTime"
+                type="time"
+                value={memberEndTime}
+                onChange={(event) => setMemberEndTime(event.target.value)}
+                required
+              />
 
               <button type="submit" className="primary-button">
                 + Add Team Member
               </button>
+
             </form>
           </section>
 

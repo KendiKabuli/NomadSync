@@ -22,11 +22,15 @@ app.add_middleware(
 Base.metadata.create_all(bind=engine)
 
 
+
 # Request model for adding team members
 class TeamMemberCreate(BaseModel):
     name: str
     email: str
     country: str
+    timezone: Optional[str] = None
+    preferred_start_time: Optional[str] = None
+    preferred_end_time: Optional[str] = None
 
 class TaskCreate(BaseModel):
     title: str
@@ -213,6 +217,7 @@ def health_check():
 # ---------------- TEAM MEMBER ENDPOINTS ----------------
 
 # Get all team members from PostgreSQL
+
 @app.get("/api/team")
 def get_team_members(db: Session = Depends(get_db)):
     members = db.query(TeamMember).order_by(TeamMember.id).all()
@@ -223,11 +228,15 @@ def get_team_members(db: Session = Depends(get_db)):
                 "id": member.id,
                 "name": member.name,
                 "email": member.email,
-                "country": member.country
+                "country": member.country,
+                "timezone": member.timezone,
+                "preferred_start_time": member.preferred_start_time,
+                "preferred_end_time": member.preferred_end_time
             }
             for member in members
         ]
     }
+
 
 
 # Get one team member by ID
@@ -273,7 +282,10 @@ def add_team_member(
     new_member = TeamMember(
         name=member.name,
         email=member.email,
-        country=member.country
+        country=member.country,
+        timezone=member.timezone,
+        preferred_start_time=member.preferred_start_time,
+        preferred_end_time=member.preferred_end_time
     )
 
     db.add(new_member)
@@ -286,9 +298,14 @@ def add_team_member(
             "id": new_member.id,
             "name": new_member.name,
             "email": new_member.email,
-            "country": new_member.country
+            "country": new_member.country,
+            "timezone": new_member.timezone,
+            "preferred_start_time": new_member.preferred_start_time,
+            "preferred_end_time": new_member.preferred_end_time
         }
     }
+
+# UPDATE AN EXISTING TEAM MEMBER
 
 # UPDATE AN EXISTING TEAM MEMBER
 @app.put("/api/team/{member_id}")
@@ -322,6 +339,15 @@ def update_team_member(
     existing_member.email = member.email
     existing_member.country = member.country
 
+    if member.timezone is not None:
+        existing_member.timezone = member.timezone
+
+    if member.preferred_start_time is not None:
+        existing_member.preferred_start_time = member.preferred_start_time
+
+    if member.preferred_end_time is not None:
+        existing_member.preferred_end_time = member.preferred_end_time
+
     db.commit()
     db.refresh(existing_member)
 
@@ -331,7 +357,10 @@ def update_team_member(
             "id": existing_member.id,
             "name": existing_member.name,
             "email": existing_member.email,
-            "country": existing_member.country
+            "country": existing_member.country,
+            "timezone": existing_member.timezone,
+            "preferred_start_time": existing_member.preferred_start_time,
+            "preferred_end_time": existing_member.preferred_end_time
         }
     }
 
