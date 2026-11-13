@@ -224,6 +224,7 @@ function App() {
   const [handoverTaskTitle, setHandoverTaskTitle] = useState('')
   const [handoverTravelPlanId, setHandoverTravelPlanId] = useState('')
   const [handoverDeadline, setHandoverDeadline] = useState('')
+  const [editingHandoverNoteId, setEditingHandoverNoteId] = useState(null)
 
 
   useEffect(() => {
@@ -241,6 +242,31 @@ function App() {
         console.error('Error fetching team members:', error)
       })
   }, [])
+
+
+  useEffect(() => {
+    API.get('/handover-notes')
+      .then((response) => {
+        const formattedNotes = response.data.handover_notes.map((note) => ({
+          id: note.id,
+          title: note.title,
+          memberId: note.member_id,
+          memberName: note.member_name,
+          taskTitle: note.task_title || '',
+          travelPlanId: note.travel_plan_id || '',
+          deadline: note.deadline || '',
+          priority: note.priority,
+          details: note.details,
+          completed: note.completed,
+        }))
+
+        setHandoverNoteList(formattedNotes)
+      })
+      .catch((error) => {
+        console.error('Error fetching handover notes:', error)
+      })
+  }, [])
+
 
   useEffect(() => {
     fetch('http://127.0.0.1:8000/api/travel-plans')
@@ -823,8 +849,10 @@ function App() {
     })
   }
 
+
   // Handover Notes functions
-  function handleCreateHandoverNote(event) {
+
+  async function handleCreateHandoverNote(event) {
     event.preventDefault()
 
     if (
@@ -861,57 +889,170 @@ function App() {
       return
     }
 
-    setHandoverNoteList((previous) => [
-      ...previous,
-      {
-        id: Date.now(),
+    try {
+      const handoverNoteData = {
         title: handoverTitle.trim(),
-        memberId: selectedMember.id,
-        memberName: selectedMember.name,
-        taskTitle: handoverTaskTitle,
-        travelPlanId: handoverTravelPlanId,
+        member_id: selectedMember.id,
+        member_name: selectedMember.name,
+        task_title: handoverTaskTitle,
+        travel_plan_id: handoverTravelPlanId
+          ? Number(handoverTravelPlanId)
+          : null,
         deadline: handoverDeadline,
-        travelDeparture: selectedTravelPlan?.departure || '',
-        travelReturn: selectedTravelPlan?.returnDate || '',
-        travelDestination: selectedTravelPlan?.destination || '',
         priority: handoverPriority,
         details: handoverDetails.trim(),
-        completed: false,
-      },
-    ])
+      }
 
-    setHandoverMemberId('')
-    setHandoverTitle('')
-    setHandoverDetails('')
-    setHandoverPriority('Medium')
-    setHandoverTaskTitle('')
-    setHandoverTravelPlanId('')
-    setHandoverDeadline('')
+      if (editingHandoverNoteId !== null) {
+        const response = await API.put(
+          `/handover-notes/${editingHandoverNoteId}`,
+          handoverNoteData
+        )
 
-    alert('Handover note added successfully!')
+        const updatedNote = response.data.handover_note
+
+        setHandoverNoteList((previous) =>
+          previous.map((note) =>
+            note.id === editingHandoverNoteId
+              ? {
+                ...note,
+                title: updatedNote.title,
+                memberId: updatedNote.member_id,
+                memberName: updatedNote.member_name,
+                taskTitle: updatedNote.task_title || '',
+                travelPlanId: updatedNote.travel_plan_id || '',
+                deadline: updatedNote.deadline || '',
+                travelDeparture: selectedTravelPlan?.departure || '',
+                travelReturn: selectedTravelPlan?.returnDate || '',
+                travelDestination: selectedTravelPlan?.destination || '',
+                priority: updatedNote.priority,
+                details: updatedNote.details,
+                completed: updatedNote.completed,
+              }
+              : note
+          )
+        )
+
+        alert('Handover note updated successfully!')
+      } else {
+        const response = await API.post(
+          '/handover-notes',
+          {
+            ...handoverNoteData,
+            completed: false,
+          }
+        )
+
+        const savedNote = response.data.handover_note
+
+        setHandoverNoteList((previous) => [
+          ...previous,
+          {
+            id: savedNote.id,
+            title: savedNote.title,
+            memberId: savedNote.member_id,
+            memberName: savedNote.member_name,
+            taskTitle: savedNote.task_title || '',
+            travelPlanId: savedNote.travel_plan_id || '',
+            deadline: savedNote.deadline || '',
+            travelDeparture: selectedTravelPlan?.departure || '',
+            travelReturn: selectedTravelPlan?.returnDate || '',
+            travelDestination: selectedTravelPlan?.destination || '',
+            priority: savedNote.priority,
+            details: savedNote.details,
+            completed: savedNote.completed,
+          },
+        ])
+
+        alert('Handover note added successfully!')
+      }
+
+      setEditingHandoverNoteId(null)
+      setHandoverMemberId('')
+      setHandoverTitle('')
+      setHandoverDetails('')
+      setHandoverPriority('Medium')
+      setHandoverTaskTitle('')
+      setHandoverTravelPlanId('')
+      setHandoverDeadline('')
+    } catch (error) {
+      console.error('Error saving handover note:', error)
+      alert('Failed to save handover note. Please try again.')
+    }
   }
 
-  function toggleHandoverNote(noteId) {
-    setHandoverNoteList((previous) =>
-      previous.map((note) =>
-        note.id === noteId
-          ? { ...note, completed: !note.completed }
-          : note
-      )
+
+  function handleEditHandoverNote(note) {
+    setEditingHandoverNoteId(note.id)
+    setHandoverMemberId(String(note.memberId))
+    setHandoverTitle(note.title)
+    setHandoverDetails(note.details)
+    setHandoverPriority(note.priority)
+    setHandoverTaskTitle(note.taskTitle || '')
+    setHandoverTravelPlanId(
+      note.travelPlanId ? String(note.travelPlanId) : ''
     )
+    setHandoverDeadline(note.deadline || '')
   }
 
-  function handleRemoveHandoverNote(noteId) {
+
+
+  async function toggleHandoverNote(noteId) {
+    const selectedNote = handoverNoteList.find(
+      (note) => note.id === noteId
+    )
+
+    if (!selectedNote) {
+      return
+    }
+
+    try {
+      const response = await API.put(
+        `/handover-notes/${noteId}`,
+        {
+          completed: !selectedNote.completed,
+        }
+      )
+
+      const updatedNote = response.data.handover_note
+
+      setHandoverNoteList((previous) =>
+        previous.map((note) =>
+          note.id === noteId
+            ? { ...note, completed: updatedNote.completed }
+            : note
+        )
+      )
+    } catch (error) {
+      console.error('Error updating handover note status:', error)
+      alert('Failed to update handover note status. Please try again.')
+    }
+  }
+
+
+  async function handleRemoveHandoverNote(noteId) {
     const confirmed = window.confirm(
       'Are you sure you want to remove this handover note?'
     )
 
-    if (confirmed) {
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      await API.delete(`/handover-notes/${noteId}`)
+
       setHandoverNoteList((previous) =>
         previous.filter((note) => note.id !== noteId)
       )
+
+      alert('Handover note removed successfully!')
+    } catch (error) {
+      console.error('Error deleting handover note:', error)
+      alert('Failed to remove handover note. Please try again.')
     }
   }
+
 
   const activeHandoverCount = handoverNoteList.filter(
     (note) => !note.completed
@@ -1981,7 +2122,9 @@ function App() {
               </select>
 
               <button type="submit" className="primary-button">
-                + Create Handover
+                {editingHandoverNoteId !== null
+                  ? 'Update Handover'
+                  : '+ Create Handover'}
               </button>
             </form>
           </section>
@@ -2112,13 +2255,25 @@ function App() {
                       </span>
                     </div>
 
-                    <button
-                      type="button"
-                      className="text-button"
-                      onClick={() => handleRemoveHandoverNote(note.id)}
-                    >
-                      Remove
-                    </button>
+
+                    <div>
+                      <button
+                        type="button"
+                        className="text-button"
+                        onClick={() => handleEditHandoverNote(note)}
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        className="text-button"
+                        onClick={() => handleRemoveHandoverNote(note.id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+
                   </article>
                 )
               })

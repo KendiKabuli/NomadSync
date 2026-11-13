@@ -6,8 +6,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 
 from database import engine, SessionLocal, Base
-from models import TeamMember, Task, Meeting, TravelPlan
-
+from models import TeamMember, Task, Meeting, TravelPlan, HandoverNote
 app = FastAPI(title="NomadSync API")
 
 # Allow our React frontend to communicate with the backend
@@ -84,6 +83,31 @@ class TravelPlanUpdate(BaseModel):
     return_date: Optional[str] = None
     reason: Optional[str] = None
     status: Optional[str] = None   
+
+
+
+class HandoverNoteCreate(BaseModel):
+    title: str
+    member_id: int
+    member_name: str
+    task_title: Optional[str] = None
+    travel_plan_id: Optional[int] = None
+    deadline: Optional[str] = None
+    priority: str = "Medium"
+    details: str
+    completed: bool = False
+
+
+class HandoverNoteUpdate(BaseModel):
+    title: Optional[str] = None
+    member_id: Optional[int] = None
+    member_name: Optional[str] = None
+    task_title: Optional[str] = None
+    travel_plan_id: Optional[int] = None
+    deadline: Optional[str] = None
+    priority: Optional[str] = None
+    details: Optional[str] = None
+    completed: Optional[bool] = None
 
 
 # Original eight team members
@@ -476,6 +500,21 @@ def travel_plan_to_dict(travel_plan):
         "reason": travel_plan.reason,
         "status": travel_plan.status
     }
+
+def handover_note_to_dict(note):
+    return {
+        "id": note.id,
+        "title": note.title,
+        "member_id": note.member_id,
+        "member_name": note.member_name,
+        "task_title": note.task_title,
+        "travel_plan_id": note.travel_plan_id,
+        "deadline": note.deadline,
+        "priority": note.priority,
+        "details": note.details,
+        "completed": note.completed
+    }
+
 # Get all meetings from PostgreSQL
 @app.get("/api/meetings")
 def get_meetings(db: Session = Depends(get_db)):
@@ -638,4 +677,102 @@ def delete_travel_plan(
 
     return {
         "message": "Travel plan deleted successfully"
+    }
+
+
+
+# ---------------- HANDOVER NOTE ENDPOINTS ----------------
+
+# Get all handover notes
+@app.get("/api/handover-notes")
+def get_handover_notes(db: Session = Depends(get_db)):
+    notes = db.query(HandoverNote).order_by(HandoverNote.id).all()
+
+    return {
+        "handover_notes": [
+            handover_note_to_dict(note) for note in notes
+        ]
+    }
+
+
+# Create a new handover note
+@app.post("/api/handover-notes")
+def create_handover_note(
+    note: HandoverNoteCreate,
+    db: Session = Depends(get_db)
+):
+    new_note = HandoverNote(
+        title=note.title,
+        member_id=note.member_id,
+        member_name=note.member_name,
+        task_title=note.task_title,
+        travel_plan_id=note.travel_plan_id,
+        deadline=note.deadline,
+        priority=note.priority,
+        details=note.details,
+        completed=note.completed
+    )
+
+    db.add(new_note)
+    db.commit()
+    db.refresh(new_note)
+
+    return {
+        "message": "Handover note created successfully",
+        "handover_note": handover_note_to_dict(new_note)
+    }
+
+
+# Update an existing handover note
+@app.put("/api/handover-notes/{note_id}")
+def update_handover_note(
+    note_id: int,
+    note: HandoverNoteUpdate,
+    db: Session = Depends(get_db)
+):
+    existing_note = db.query(HandoverNote).filter(
+        HandoverNote.id == note_id
+    ).first()
+
+    if not existing_note:
+        raise HTTPException(
+            status_code=404,
+            detail="Handover note not found"
+        )
+
+    update_data = note.dict(exclude_unset=True)
+
+    for key, value in update_data.items():
+        setattr(existing_note, key, value)
+
+    db.commit()
+    db.refresh(existing_note)
+
+    return {
+        "message": "Handover note updated successfully",
+        "handover_note": handover_note_to_dict(existing_note)
+    }
+
+
+# Delete a handover note
+@app.delete("/api/handover-notes/{note_id}")
+def delete_handover_note(
+    note_id: int,
+    db: Session = Depends(get_db)
+):
+    existing_note = db.query(HandoverNote).filter(
+        HandoverNote.id == note_id
+    ).first()
+
+    if not existing_note:
+        raise HTTPException(
+            status_code=404,
+            detail="Handover note not found"
+        )
+
+    db.delete(existing_note)
+    db.commit()
+
+    return {
+        "message": "Handover note deleted successfully"
     }

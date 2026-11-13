@@ -43,3 +43,19 @@ class TravelPlan(Base):
     return_date = Column(String(20), nullable=False)
     reason = Column(String(500), nullable=True)
     status = Column(String(30), default="Upcoming")
+
+
+
+class HandoverNote(Base):
+    __tablename__ = "handover_notes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(200), nullable=False)
+    member_id = Column(Integer, nullable=False)
+    member_name = Column(String(100), nullable=False)
+    task_title = Column(String(200), nullable=True)
+    travel_plan_id = Column(Integer, nullable=True)
+    deadline = Column(String(20), nullable=True)
+    priority = Column(String(20), default="Medium")
+    details = Column(String(1000), nullable=False)
+    completed = Column(Boolean, default=False)
