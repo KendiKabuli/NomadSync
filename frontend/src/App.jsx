@@ -180,9 +180,12 @@ function App() {
   }
 
   const [meetingList, setMeetingList] = useState(meetings)
+  const [meetingLocalTimes, setMeetingLocalTimes] = useState({})
+  const [expandedMeetingIds, setExpandedMeetingIds] = useState([])
   const [meetingTitle, setMeetingTitle] = useState('')
   const [meetingDate, setMeetingDate] = useState('')
   const [meetingTime, setMeetingTime] = useState('')
+  const [meetingTimezone, setMeetingTimezone] = useState('Africa/Nairobi')
   const [participants, setParticipants] = useState('2')
   const [editingMeetingId, setEditingMeetingId] = useState(null)
 
@@ -348,6 +351,40 @@ function App() {
         console.error('Error loading meetings:', error)
       })
   }, [])
+  useEffect(() => {
+    async function loadMeetingLocalTimes() {
+      if (meetingList.length === 0 || teamMembers.length === 0) {
+        return
+      }
+
+      try {
+        const localTimes = {}
+
+        for (const meeting of meetingList) {
+          localTimes[meeting.id] = {}
+
+          for (const member of teamMembers) {
+            if (!member.timezone) {
+              continue
+            }
+
+            const response = await API.get(
+              `/meetings/${meeting.id}/local-time/${member.id}`
+            )
+
+            localTimes[meeting.id][member.id] = response.data.local_time
+          }
+        }
+
+        setMeetingLocalTimes(localTimes)
+        console.log('Meeting local times loaded:', localTimes)
+      } catch (error) {
+        console.error('Error loading meeting local times:', error)
+      }
+    }
+
+    loadMeetingLocalTimes()
+  }, [meetingList, teamMembers])
 
 
   function handleEditMeeting(meeting) {
@@ -375,6 +412,7 @@ function App() {
       title: meetingTitle.trim(),
       meeting_date: meetingDate,
       meeting_time: meetingTime,
+      timezone: meetingTimezone,
       participants: Number(participants),
     }
 
@@ -1376,6 +1414,20 @@ function App() {
                 onChange={(event) => setMeetingTime(event.target.value)}
                 required
               />
+              <label htmlFor="meetingTimezone">Meeting time zone</label>
+              <select
+                id="meetingTimezone"
+                value={meetingTimezone}
+                onChange={(event) => setMeetingTimezone(event.target.value)}
+                required
+              >
+                <option value="Africa/Nairobi">Africa/Nairobi (Kenya)</option>
+                <option value="Europe/London">Europe/London (United Kingdom)</option>
+                <option value="Asia/Bangkok">Asia/Bangkok (Thailand)</option>
+                <option value="Europe/Amsterdam">Europe/Amsterdam (Netherlands)</option>
+                <option value="Africa/Johannesburg">Africa/Johannesburg (South Africa)</option>
+                <option value="Asia/Ho_Chi_Minh">Asia/Ho_Chi_Minh (Vietnam)</option>
+              </select>
 
               <label htmlFor="participants">Number of participants</label>
               <select
@@ -1415,6 +1467,44 @@ function App() {
                 </div>
 
                 <div className="meeting-time">{meeting.time}</div>
+                <div className="meeting-local-times">
+                  <button
+                    type="button"
+                    className="local-times-toggle"
+                    onClick={() => {
+                      setExpandedMeetingIds((previous) =>
+                        previous.includes(meeting.id)
+                          ? previous.filter((id) => id !== meeting.id)
+                          : [...previous, meeting.id]
+                      )
+                    }}
+                  >
+                    {expandedMeetingIds.includes(meeting.id)
+                      ? 'Hide team time zones ▲'
+                      : 'View team time zones ▼'}
+                  </button>
+
+                  {expandedMeetingIds.includes(meeting.id) && (
+                    <div className="local-times-list">
+                      {teamMembers.map((member) => {
+                        const localTime = meetingLocalTimes[meeting.id]?.[member.id]
+
+                        if (!localTime) {
+                          return null
+                        }
+
+                        return (
+                          <div className="local-time-item" key={member.id}>
+                            <span>{member.name}</span>
+                            <span>
+                              {localTime.formatted} ({localTime.timezone})
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
 
                 <button
                   type="button"

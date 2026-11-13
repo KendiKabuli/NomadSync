@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Optional
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from database import engine, SessionLocal, Base
 from models import TeamMember, Task, Meeting, TravelPlan, HandoverNote
@@ -62,6 +64,7 @@ class MeetingCreate(BaseModel):
     title: str
     meeting_date: str
     meeting_time: str
+    timezone: Optional[str] = None
     participants: int = 2
 
 
@@ -69,6 +72,7 @@ class MeetingUpdate(BaseModel):
     title: Optional[str] = None
     meeting_date: Optional[str] = None
     meeting_time: Optional[str] = None
+    timezone: Optional[str] = None
     participants: Optional[int] = None
 
 class TravelPlanCreate(BaseModel):
@@ -516,9 +520,36 @@ def meeting_to_dict(meeting):
         "title": meeting.title,
         "meeting_date": meeting.meeting_date,
         "meeting_time": meeting.meeting_time,
+        "timezone": meeting.timezone,
         "participants": meeting.participants
     }
 
+def convert_meeting_time(meeting, target_timezone):
+    # Use Nairobi as the default for older meetings without a saved time zone
+    source_timezone = meeting.timezone or "Africa/Nairobi"
+
+    # Combine the meeting date and time
+    meeting_datetime = datetime.strptime(
+        f"{meeting.meeting_date} {meeting.meeting_time}",
+        "%Y-%m-%d %H:%M"
+    )
+
+    # Attach the original time zone
+    meeting_datetime = meeting_datetime.replace(
+        tzinfo=ZoneInfo(source_timezone)
+    )
+
+    # Convert to the team member's local time
+    local_datetime = meeting_datetime.astimezone(
+        ZoneInfo(target_timezone)
+    )
+
+    return {
+        "date": local_datetime.strftime("%Y-%m-%d"),
+        "time": local_datetime.strftime("%H:%M"),
+        "formatted": local_datetime.strftime("%Y-%m-%d %I:%M %p"),
+        "timezone": target_timezone
+    }
 def travel_plan_to_dict(travel_plan):
     return {
         "id": travel_plan.id,
@@ -552,7 +583,41 @@ def get_meetings(db: Session = Depends(get_db)):
     return {
         "meetings": [meeting_to_dict(meeting) for meeting in meetings]
     }
+@app.get("/api/meetings/{meeting_id}/local-time/{member_id}")
+def get_meeting_local_time(
+    meeting_id: int,
+    member_id: int,
+    db: Session = Depends(get_db)
+):
+    meeting = db.query(Meeting).filter(
+        Meeting.id == meeting_id
+    ).first()
 
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    member = db.query(TeamMember).filter(
+        TeamMember.id == member_id
+    ).first()
+
+    if not member:
+        raise HTTPException(status_code=404, detail="Team member not found")
+
+    if not member.timezone:
+        raise HTTPException(
+            status_code=400,
+            detail="Team member has no time zone configured"
+        )
+
+    converted_time = convert_meeting_time(meeting, member.timezone)
+
+    return {
+        "meeting_title": meeting.title,
+        "member_name": member.name,
+        "original_time": meeting.meeting_time,
+        "original_timezone": meeting.timezone or "Africa/Nairobi",
+        "local_time": converted_time
+    }
 
 # Add a new meeting to PostgreSQL
 @app.post("/api/meetings")
@@ -561,11 +626,13 @@ def add_meeting(
     db: Session = Depends(get_db)
 ):
     new_meeting = Meeting(
-        title=meeting_data.title,
-        meeting_date=meeting_data.meeting_date,
-        meeting_time=meeting_data.meeting_time,
-        participants=meeting_data.participants
-    )
+    title=meeting_data.title,
+    meeting_date=meeting_data.meeting_date,
+    meeting_time=meeting_data.meeting_time,
+    timezone=meeting_data.timezone,
+    participants=meeting_data.participants
+)
+    
 
     db.add(new_meeting)
     db.commit()

@@ -670,3 +670,60 @@ h1 {
   }
 }
 
+/* Meeting local time dropdown */
+.meeting-local-times {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 180px;
+}
+
+.local-times-toggle {
+  background: #f5f6ff;
+  color: #5559c9;
+  border: 1px solid #e1e3ff;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.local-times-toggle:hover {
+  background: #ebedff;
+}
+
+.local-times-list {
+  background: #f8f9fc;
+  border: 1px solid #e8eaf2;
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.local-time-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e8eaf2;
+  font-size: 12px;
+}
+
+.local-time-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.local-time-item span:first-child {
+  font-weight: 600;
+  color: #252b55;
+}
+
+.local-time-item span:last-child {
+  color: #777b91;
+  font-size: 11px;
+}

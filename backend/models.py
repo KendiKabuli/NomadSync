@@ -36,6 +36,7 @@ class Meeting(Base):
     title = Column(String(200), nullable=False)
     meeting_date = Column(String(20), nullable=False)
     meeting_time = Column(String(20), nullable=False)
+    timezone = Column(String(100), nullable=True)
     participants = Column(Integer, default=2)
 
 class TravelPlan(Base):
