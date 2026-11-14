@@ -388,7 +388,7 @@ function App() {
   }, [meetingList, teamMembers])
 
 
-  function handleEditMeeting(meeting) {
+  async function handleEditMeeting(meeting) {
     console.log('Meeting selected for editing:', meeting)
 
     setEditingMeetingId(meeting.id)
@@ -400,6 +400,22 @@ function App() {
       meeting.participants ?? Number.parseInt(meeting.people, 10)
 
     setParticipants(String(participantCount))
+
+    try {
+      const response = await API.get(
+        `/meeting-attendance/${meeting.id}`
+      )
+
+      const memberIds = response.data.attendees.map(
+        (member) => member.member_id
+      )
+
+      setSelectedMeetingMembers(memberIds)
+
+    } catch (error) {
+      console.error('Error loading meeting participants:', error)
+      alert('Could not load the saved meeting participants.')
+    }
   }
 
   async function handleCreateMeeting(event) {
