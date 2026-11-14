@@ -65,3 +65,13 @@ class HandoverNote(Base):
     priority = Column(String(20), default="Medium")
     details = Column(String(1000), nullable=False)
     completed = Column(Boolean, default=False)
+
+
+class MeetingAttendance(Base):
+    __tablename__ = "meeting_attendance"
+
+    id = Column(Integer, primary_key=True, index=True)
+    meeting_id = Column(Integer, ForeignKey("meetings.id"), nullable=False)
+    member_id = Column(Integer, ForeignKey("team_members.id"), nullable=False)
+
+    inconvenient = Column(Boolean, default=False)

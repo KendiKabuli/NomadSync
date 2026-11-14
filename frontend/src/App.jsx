@@ -188,6 +188,7 @@ function App() {
   const [meetingTimezone, setMeetingTimezone] = useState('Africa/Nairobi')
   const [participants, setParticipants] = useState('2')
   const [editingMeetingId, setEditingMeetingId] = useState(null)
+  const [selectedMeetingMembers, setSelectedMeetingMembers] = useState([])
 
   const [taskList, setTaskList] = useState([])
   const [taskTitle, setTaskTitle] = useState('')
@@ -400,6 +401,7 @@ function App() {
 
     setParticipants(String(participantCount))
   }
+
   async function handleCreateMeeting(event) {
     event.preventDefault()
 
@@ -408,12 +410,17 @@ function App() {
       return
     }
 
+    if (selectedMeetingMembers.length === 0) {
+      alert('Please select at least one meeting participant.')
+      return
+    }
+
     const meetingData = {
       title: meetingTitle.trim(),
       meeting_date: meetingDate,
       meeting_time: meetingTime,
       timezone: meetingTimezone,
-      participants: Number(participants),
+      participants: selectedMeetingMembers.length,
     }
 
     try {
@@ -432,8 +439,14 @@ function App() {
         ...response.data.meeting,
         date: response.data.meeting.meeting_date,
         time: response.data.meeting.meeting_time,
-        people: `${response.data.meeting.participants} participants`,
+        people: `${selectedMeetingMembers.length} participants`,
       }
+
+      // Save the selected team members' attendance
+      await API.post('/meeting-attendance', {
+        meeting_id: savedMeeting.id,
+        member_ids: selectedMeetingMembers,
+      })
 
       if (editingMeetingId) {
         setMeetingList((previous) =>
@@ -453,6 +466,8 @@ function App() {
       setMeetingTitle('')
       setMeetingDate('')
       setMeetingTime('')
+      setMeetingTimezone('Africa/Nairobi')
+      setSelectedMeetingMembers([])
       setParticipants('2')
 
     } catch (error) {
@@ -460,6 +475,7 @@ function App() {
       alert('Failed to save meeting. Please try again.')
     }
   }
+
 
   async function handleDeleteMeeting(meetingId) {
     const confirmed = window.confirm(
@@ -1429,18 +1445,37 @@ function App() {
                 <option value="Asia/Ho_Chi_Minh">Asia/Ho_Chi_Minh (Vietnam)</option>
               </select>
 
-              <label htmlFor="participants">Number of participants</label>
-              <select
-                id="participants"
-                value={participants}
-                onChange={(event) => setParticipants(event.target.value)}
-              >
-                {[2, 3, 4, 5, 6, 7, 8].map((number) => (
-                  <option key={number} value={number}>
-                    {number} participants
-                  </option>
+              <label>Select meeting participants</label>
+
+              <div className="meeting-participant-selection">
+                {teamMembers.map((member) => (
+                  <label key={member.id} className="participant-option">
+                    <input
+                      type="checkbox"
+                      checked={selectedMeetingMembers.includes(member.id)}
+                      onChange={(event) => {
+                        if (event.target.checked) {
+                          setSelectedMeetingMembers((previous) => [
+                            ...previous,
+                            member.id,
+                          ])
+                        } else {
+                          setSelectedMeetingMembers((previous) =>
+                            previous.filter((id) => id !== member.id)
+                          )
+                        }
+                      }}
+                    />
+
+                    <span>{member.name}</span>
+                    <small>{member.country}</small>
+                  </label>
                 ))}
-              </select>
+              </div>
+
+              <small>
+                {selectedMeetingMembers.length} team members selected
+              </small>
 
               <button type="submit" className="primary-button">
                 + Create Meeting

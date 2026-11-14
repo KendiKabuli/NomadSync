@@ -8,7 +8,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from database import engine, SessionLocal, Base
-from models import TeamMember, Task, Meeting, TravelPlan, HandoverNote
+from models import TeamMember, Task, Meeting, TravelPlan, HandoverNote, MeetingAttendance
 app = FastAPI(title="NomadSync API")
 
 # Allow our React frontend to communicate with the backend
@@ -74,6 +74,11 @@ class MeetingUpdate(BaseModel):
     meeting_time: Optional[str] = None
     timezone: Optional[str] = None
     participants: Optional[int] = None
+
+
+class MeetingAttendanceCreate(BaseModel):
+    meeting_id: int
+    member_ids: list[int]
 
 class TravelPlanCreate(BaseModel):
     member: str
@@ -871,4 +876,93 @@ def delete_handover_note(
 
     return {
         "message": "Handover note deleted successfully"
+    }
+
+# ---------------- MEETING ATTENDANCE ENDPOINTS ----------------
+
+@app.post("/api/meeting-attendance")
+def save_meeting_attendance(
+    attendance_data: MeetingAttendanceCreate,
+    db: Session = Depends(get_db)
+):
+    meeting = db.query(Meeting).filter(
+        Meeting.id == attendance_data.meeting_id
+    ).first()
+
+    if not meeting:
+        raise HTTPException(
+            status_code=404,
+            detail="Meeting not found"
+        )
+
+    # Remove previous attendance records for this meeting
+    db.query(MeetingAttendance).filter(
+        MeetingAttendance.meeting_id == meeting.id
+    ).delete()
+
+    # Save the selected team members
+    for member_id in attendance_data.member_ids:
+        member = db.query(TeamMember).filter(
+            TeamMember.id == member_id
+        ).first()
+
+        if not member:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Team member with ID {member_id} not found"
+            )
+
+        attendance = MeetingAttendance(
+            meeting_id=meeting.id,
+            member_id=member.id
+        )
+
+        db.add(attendance)
+
+    db.commit()
+
+    return {
+        "message": "Meeting attendance saved successfully",
+        "meeting_id": meeting.id,
+        "member_ids": attendance_data.member_ids
+    }
+
+# Get team members attending a specific meeting
+@app.get("/api/meeting-attendance/{meeting_id}")
+def get_meeting_attendance(
+    meeting_id: int,
+    db: Session = Depends(get_db)
+):
+    meeting = db.query(Meeting).filter(
+        Meeting.id == meeting_id
+    ).first()
+
+    if not meeting:
+        raise HTTPException(
+            status_code=404,
+            detail="Meeting not found"
+        )
+
+    attendance_records = db.query(MeetingAttendance).filter(
+        MeetingAttendance.meeting_id == meeting_id
+    ).all()
+
+    attendees = []
+
+    for record in attendance_records:
+        member = db.query(TeamMember).filter(
+            TeamMember.id == record.member_id
+        ).first()
+
+        if member:
+            attendees.append({
+                "member_id": member.id,
+                "name": member.name,
+                "country": member.country,
+                "timezone": member.timezone
+            })
+
+    return {
+        "meeting_id": meeting_id,
+        "attendees": attendees
     }
