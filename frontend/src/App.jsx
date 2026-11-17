@@ -241,6 +241,8 @@ function App() {
   const [handoverTravelPlanId, setHandoverTravelPlanId] = useState('')
   const [handoverDeadline, setHandoverDeadline] = useState('')
   const [editingHandoverNoteId, setEditingHandoverNoteId] = useState(null)
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false)
+  const [readNotificationIds, setReadNotificationIds] = useState([])
 
 
   useEffect(() => {
@@ -1213,6 +1215,95 @@ function App() {
     (plan) => plan.memberId === Number(handoverMemberId)
   )
 
+  // Generate notifications from existing database records
+  const notifications = []
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  function getDaysUntil(dateString) {
+    if (!dateString) return null
+
+    const [year, month, day] = dateString.split('-').map(Number)
+    const date = new Date(year, month - 1, day)
+    date.setHours(0, 0, 0, 0)
+
+    return Math.round(
+      (date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+    )
+  }
+
+  // Meeting notifications
+  meetingList.forEach((meeting) => {
+    const days = getDaysUntil(meeting.date)
+
+    if (days !== null && days >= 0 && days <= 7) {
+      notifications.push({
+        id: `meeting-${meeting.id}`,
+        type: 'Meeting',
+        title: 'Upcoming meeting',
+        message: `${meeting.title} is scheduled for ${meeting.date}.`,
+        date: meeting.date,
+      })
+    }
+  })
+
+  // Task notifications
+  taskList.forEach((task) => {
+    if (task.completed) return
+
+    const days = getDaysUntil(task.deadline)
+
+    if (days !== null && days <= 3) {
+      notifications.push({
+        id: `task-${task.id}`,
+        type: 'Task',
+        title: days < 0 ? 'Overdue task' : 'Task deadline approaching',
+        message: `${task.title} ${days < 0 ? 'is overdue.' : days === 0 ? 'is due today.' : `is due in ${days} day(s).`}`,
+        date: task.deadline,
+      })
+    }
+  })
+
+  // Travel notifications
+  travelPlanList.forEach((plan) => {
+    const days = getDaysUntil(plan.departure)
+
+    if (
+      days !== null &&
+      days >= 0 &&
+      days <= 7 &&
+      plan.status !== 'Completed'
+    ) {
+      notifications.push({
+        id: `travel-${plan.id}`,
+        type: 'Travel',
+        title: 'Upcoming travel',
+        message: `${plan.memberName} is travelling to ${plan.destination}.`,
+        date: plan.departure,
+      })
+    }
+  })
+
+  // Handover note notifications
+  handoverNoteList.forEach((note) => {
+    if (note.completed || !note.deadline) return
+
+    const days = getDaysUntil(note.deadline)
+
+    if (days !== null && days <= 3) {
+      notifications.push({
+        id: `handover-${note.id}`,
+        type: 'Handover',
+        title: days < 0 ? 'Overdue handover' : 'Handover deadline approaching',
+        message: `${note.title} ${days < 0 ? 'is overdue.' : days === 0 ? 'is due today.' : `is due in ${days} day(s).`}`,
+        date: note.deadline,
+      })
+    }
+  })
+
+  notifications.sort((a, b) => a.date.localeCompare(b.date))
+
   return (
     <div className="app-layout">
       <aside className="sidebar">
@@ -1262,14 +1353,72 @@ function App() {
         <main className="main-content">
           <header className="topbar">
             <div>
-              <p className="eyebrow">MONDAY, OCTOBER 12</p>
+              <p className="eyebrow">FRIDAY, NOVEMBER 20</p>
               <h1>Good morning, Alex! 👋</h1>
               <p className="subtitle">Here's what's happening with your team today.</p>
             </div>
 
-            <button className="notification" aria-label="Notifications">
-              ♧<span className="notification-dot"></span>
+            <button
+              className="notification"
+              aria-label="Notifications"
+              onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+            >
+              🔔
+              {notifications.length > 0 && (
+                <span className="notification-dot">
+                  {notifications.filter(
+                    (notification) => !readNotificationIds.includes(notification.id)
+                  ).length}
+                </span>
+              )}
             </button>
+            {isNotificationOpen && (
+              <div className="notification-panel">
+                <div className="notification-panel-header">
+                  <h3>Notifications</h3>
+                  <button
+                    type="button"
+                    onClick={() => setIsNotificationOpen(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+
+                {notifications.length === 0 ? (
+                  <p className="empty-notifications">
+                    You're all caught up! No new notifications.
+                  </p>
+                ) : (
+                  notifications.map((notification) => (
+                    <div
+                      key={notification.id}
+                      className={`notification-item ${readNotificationIds.includes(notification.id) ? 'read' : ''
+                        }`}
+                    >
+                      <div>
+                        <strong>{notification.title}</strong>
+                        <p>{notification.message}</p>
+                        <small>{notification.date}</small>
+                      </div>
+
+                      {!readNotificationIds.includes(notification.id) && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setReadNotificationIds((previous) => [
+                              ...previous,
+                              notification.id,
+                            ])
+                          }
+                        >
+                          Mark read
+                        </button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </header>
 
           <section className="stats-grid">
