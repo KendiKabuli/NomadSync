@@ -183,6 +183,8 @@ function App() {
   const [meetingLocalTimes, setMeetingLocalTimes] = useState({})
   const [expandedMeetingIds, setExpandedMeetingIds] = useState([])
   const [meetingTitle, setMeetingTitle] = useState('')
+  const [fairnessSuggestion, setFairnessSuggestion] = useState(null)
+  const [loadingSuggestion, setLoadingSuggestion] = useState(false)
   const [meetingDate, setMeetingDate] = useState('')
   const [meetingTime, setMeetingTime] = useState('')
   const [meetingTimezone, setMeetingTimezone] = useState('Africa/Nairobi')
@@ -491,6 +493,43 @@ function App() {
       alert('Failed to save meeting. Please try again.')
     }
   }
+
+
+  async function handleSuggestMeetingTime() {
+    if (!meetingDate) {
+      alert('Please select a meeting date first.')
+      return
+    }
+
+    if (selectedMeetingMembers.length === 0) {
+      alert('Please select at least one meeting participant.')
+      return
+    }
+
+    setLoadingSuggestion(true)
+    setFairnessSuggestion(null)
+
+    try {
+      const response = await API.post('/fairness-suggestions', {
+        meeting_date: meetingDate,
+        timezone: meetingTimezone,
+        member_ids: selectedMeetingMembers,
+        candidate_times: ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00']
+      })
+
+      setFairnessSuggestion(response.data)
+
+      // Automatically put the recommended time in the meeting form
+      setMeetingTime(response.data.recommended_time)
+
+    } catch (error) {
+      console.error('Error getting fairness suggestion:', error)
+      alert('Could not generate meeting time suggestions. Please try again.')
+    } finally {
+      setLoadingSuggestion(false)
+    }
+  }
+
 
 
   async function handleDeleteMeeting(meetingId) {
@@ -1446,6 +1485,43 @@ function App() {
                 onChange={(event) => setMeetingTime(event.target.value)}
                 required
               />
+
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={handleSuggestMeetingTime}
+                disabled={loadingSuggestion}
+              >
+                {loadingSuggestion
+                  ? 'Checking times...'
+                  : 'Suggest Best Meeting Time'}
+              </button>
+
+              {fairnessSuggestion && (
+                <div className="fairness-suggestion">
+                  <h4>
+                    Recommended meeting time: {fairnessSuggestion.recommended_time}
+                  </h4>
+
+                  <p>{fairnessSuggestion.message}</p>
+
+                  <h5>Time comparison</h5>
+
+                  {fairnessSuggestion.suggestions.map((suggestion) => (
+                    <div key={suggestion.meeting_time}>
+                      <strong>{suggestion.meeting_time}</strong>
+
+                      <p>
+                        {suggestion.total_inconvenienced} participant(s) inconvenienced
+                      </p>
+
+                      <p>
+                        Fairness score: {suggestion.fairness_score}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
               <label htmlFor="meetingTimezone">Meeting time zone</label>
               <select
                 id="meetingTimezone"
