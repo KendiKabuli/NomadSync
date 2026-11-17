@@ -80,6 +80,15 @@ class MeetingAttendanceCreate(BaseModel):
     meeting_id: int
     member_ids: list[int]
 
+
+
+class FairnessSuggestionRequest(BaseModel):
+    meeting_date: str
+    timezone: str
+    member_ids: list[int]
+    candidate_times: list[str]
+
+
 class TravelPlanCreate(BaseModel):
     member: str
     destination: str
@@ -555,6 +564,46 @@ def convert_meeting_time(meeting, target_timezone):
         "formatted": local_datetime.strftime("%Y-%m-%d %I:%M %p"),
         "timezone": target_timezone
     }
+
+def check_meeting_inconvenience(meeting, member):
+    # Check whether the member has working hours configured
+    if (
+        not member.timezone
+        or not member.preferred_start_time
+        or not member.preferred_end_time
+    ):
+        return False
+
+    # Convert meeting time to the member's local time
+    local_meeting = convert_meeting_time(
+        meeting,
+        member.timezone
+    )
+
+    meeting_time = datetime.strptime(
+        local_meeting["time"], "%H:%M"
+    ).time()
+
+    start_time = datetime.strptime(
+        member.preferred_start_time, "%H:%M"
+    ).time()
+
+    end_time = datetime.strptime(
+        member.preferred_end_time, "%H:%M"
+    ).time()
+
+    if start_time < end_time:
+        is_within_working_hours = (
+            start_time <= meeting_time < end_time
+        )
+    else:
+        is_within_working_hours = (
+            meeting_time >= start_time
+            or meeting_time < end_time
+        )
+
+    return not is_within_working_hours
+
 def travel_plan_to_dict(travel_plan):
     return {
         "id": travel_plan.id,
@@ -880,6 +929,7 @@ def delete_handover_note(
 
 # ---------------- MEETING ATTENDANCE ENDPOINTS ----------------
 
+
 @app.post("/api/meeting-attendance")
 def save_meeting_attendance(
     attendance_data: MeetingAttendanceCreate,
@@ -895,12 +945,12 @@ def save_meeting_attendance(
             detail="Meeting not found"
         )
 
-    # Remove previous attendance records for this meeting
+    # Remove previous attendance records
     db.query(MeetingAttendance).filter(
         MeetingAttendance.meeting_id == meeting.id
     ).delete()
 
-    # Save the selected team members
+    # Save attendance and calculate inconvenience
     for member_id in attendance_data.member_ids:
         member = db.query(TeamMember).filter(
             TeamMember.id == member_id
@@ -912,9 +962,15 @@ def save_meeting_attendance(
                 detail=f"Team member with ID {member_id} not found"
             )
 
+        inconvenient = check_meeting_inconvenience(
+            meeting,
+            member
+        )
+
         attendance = MeetingAttendance(
             meeting_id=meeting.id,
-            member_id=member.id
+            member_id=member.id,
+            inconvenient=inconvenient
         )
 
         db.add(attendance)
@@ -927,7 +983,9 @@ def save_meeting_attendance(
         "member_ids": attendance_data.member_ids
     }
 
+
 # Get team members attending a specific meeting
+
 @app.get("/api/meeting-attendance/{meeting_id}")
 def get_meeting_attendance(
     meeting_id: int,
@@ -959,10 +1017,169 @@ def get_meeting_attendance(
                 "member_id": member.id,
                 "name": member.name,
                 "country": member.country,
-                "timezone": member.timezone
+                "timezone": member.timezone,
+                "inconvenient": record.inconvenient
             })
 
     return {
         "meeting_id": meeting_id,
         "attendees": attendees
     }
+
+
+@app.get("/api/fairness-summary")
+def get_fairness_summary(db: Session = Depends(get_db)):
+    members = db.query(TeamMember).order_by(TeamMember.id).all()
+
+    fairness_summary = []
+
+    for member in members:
+        attendance_records = db.query(MeetingAttendance).filter(
+            MeetingAttendance.member_id == member.id
+        ).all()
+
+        total_meetings = len(attendance_records)
+
+        inconvenient_meetings = sum(
+            1 for record in attendance_records
+            if record.inconvenient
+        )
+
+        convenient_meetings = (
+            total_meetings - inconvenient_meetings
+        )
+
+        fairness_summary.append({
+            "member_id": member.id,
+            "member_name": member.name,
+            "total_meetings": total_meetings,
+            "inconvenient_meetings": inconvenient_meetings,
+            "convenient_meetings": convenient_meetings
+        })
+
+    return {
+        "fairness_summary": fairness_summary
+    }
+
+
+@app.post("/api/fairness-suggestions")
+def get_fairness_suggestions(
+    suggestion: FairnessSuggestionRequest,
+    db: Session = Depends(get_db)
+):
+    # Validate the meeting timezone
+    try:
+        ZoneInfo(suggestion.timezone)
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid meeting timezone"
+        )
+
+    if not suggestion.member_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="Please select at least one team member"
+        )
+
+    if not suggestion.candidate_times:
+        raise HTTPException(
+            status_code=400,
+            detail="Please provide at least one candidate time"
+        )
+
+    # Validate the meeting date
+    try:
+        datetime.strptime(
+            suggestion.meeting_date, "%Y-%m-%d"
+        )
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Meeting date must use YYYY-MM-DD format"
+        )
+
+    # Retrieve and validate selected team members
+    members = []
+
+    for member_id in suggestion.member_ids:
+        member = db.query(TeamMember).filter(
+            TeamMember.id == member_id
+        ).first()
+
+        if not member:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Team member {member_id} not found"
+            )
+
+        members.append(member)
+
+    suggestions = []
+
+    for candidate_time in suggestion.candidate_times:
+        try:
+            datetime.strptime(candidate_time, "%H:%M")
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid time format: {candidate_time}. Use HH:MM"
+            )
+
+        # Create a temporary meeting for time evaluation
+        candidate_meeting = Meeting(
+            title="Fairness evaluation",
+            meeting_date=suggestion.meeting_date,
+            meeting_time=candidate_time,
+            timezone=suggestion.timezone
+        )
+
+        total_inconvenienced = 0
+        fairness_score = 0
+        affected_members = []
+
+        for member in members:
+            inconvenient = check_meeting_inconvenience(
+                candidate_meeting,
+                member
+            )
+
+            if inconvenient:
+                total_inconvenienced += 1
+
+                # Count this member's previous inconvenient meetings
+                previous_count = db.query(MeetingAttendance).filter(
+                    MeetingAttendance.member_id == member.id,
+                    MeetingAttendance.inconvenient == True
+                ).count()
+
+                # Give a higher penalty to repeatedly inconvenienced members
+                fairness_score += (previous_count + 1)
+
+                affected_members.append({
+                    "member_id": member.id,
+                    "member_name": member.name,
+                    "previous_inconvenient_meetings": previous_count
+                })
+
+        suggestions.append({
+            "meeting_time": candidate_time,
+            "total_inconvenienced": total_inconvenienced,
+            "fairness_score": fairness_score,
+            "affected_members": affected_members
+        })
+
+    # Sort by lowest fairness score
+    suggestions.sort(
+        key=lambda item: (
+            item["fairness_score"],
+            item["total_inconvenienced"]
+        )
+    )
+
+    return {
+        "recommended_time": suggestions[0]["meeting_time"],
+        "message": "Meeting time with the lowest fairness penalty recommended",
+        "suggestions": suggestions
+    }
+
