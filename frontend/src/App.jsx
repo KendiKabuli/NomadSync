@@ -110,7 +110,7 @@ const initialHandoverNotes = [
   },
 ]
 
-function App() {
+function App({ user, onLogout }) {
   const [activePage, setActivePage] = useState('Dashboard')
 
   // Settings state
@@ -1419,6 +1419,13 @@ function App() {
                 )}
               </div>
             )}
+            <button
+              type="button"
+              className="logout-button"
+              onClick={onLogout}
+            >
+              Logout
+            </button>
           </header>
 
           <section className="stats-grid">

@@ -1,5 +1,6 @@
 
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -8,9 +9,58 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from database import engine, SessionLocal, Base
-from models import TeamMember, Task, Meeting, TravelPlan, HandoverNote, MeetingAttendance
+from models import TeamMember, Task, Meeting, TravelPlan, HandoverNote, MeetingAttendance, User
+from auth import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    decode_access_token
+)
 app = FastAPI(title="NomadSync API")
 
+
+# Protect API routes using login tokens
+@app.middleware("http")
+async def authenticate_requests(request: Request, call_next):
+
+    # Allow registration, login, documentation and health checks
+    public_paths = [
+        "/",
+        "/health",
+        "/docs",
+        "/openapi.json",
+        "/redoc",
+        "/api/auth/register",
+        "/api/auth/login"
+    ]
+
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
+    if request.url.path in public_paths:
+        return await call_next(request)
+
+    # Require a valid token for all other API routes
+    if request.url.path.startswith("/api/"):
+
+        authorization = request.headers.get("Authorization")
+
+        if not authorization or not authorization.startswith("Bearer "):
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Please log in to access this resource."}
+            )
+
+        token = authorization.split(" ", 1)[1]
+        payload = decode_access_token(token)
+
+        if not payload or not payload.get("sub"):
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Invalid or expired login token."}
+            )
+
+    return await call_next(request)
 # Allow our React frontend to communicate with the backend
 app.add_middleware(
     CORSMiddleware,
@@ -24,7 +74,18 @@ app.add_middleware(
 Base.metadata.create_all(bind=engine)
 
 
+# Request models for user authentication
+class RegisterRequest(BaseModel):
+    name: str
+    email: str
+    password: str
 
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+    
 # Request model for adding team members
 class TeamMemberCreate(BaseModel):
     name: str
@@ -187,6 +248,117 @@ def get_db():
         db.close()
 
 
+# Register a new user
+@app.post("/api/auth/register")
+def register_user(
+    user_data: RegisterRequest,
+    db: Session = Depends(get_db)
+):
+    existing_user = db.query(User).filter(
+        User.email == user_data.email.lower().strip()
+    ).first()
+
+    if existing_user:
+        raise HTTPException(
+            status_code=400,
+            detail="An account with this email already exists."
+        )
+
+    if len(user_data.password) < 12:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must be at least 12 characters long."
+        )
+
+    new_user = User(
+        name=user_data.name.strip(),
+        email=user_data.email.lower().strip(),
+        hashed_password=hash_password(user_data.password)
+    )
+
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return {
+        "message": "Account created successfully.",
+        "user": {
+            "id": new_user.id,
+            "name": new_user.name,
+            "email": new_user.email
+        }
+    }
+
+
+# Log in an existing user
+@app.post("/api/auth/login")
+def login_user(
+    login_data: LoginRequest,
+    db: Session = Depends(get_db)
+):
+    email = login_data.email.lower().strip()
+
+    user = db.query(User).filter(
+        User.email == email
+    ).first()
+
+    if not user or not verify_password(
+        login_data.password,
+        user.hashed_password
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect email or password."
+        )
+
+    access_token = create_access_token({
+        "sub": str(user.id)
+    })
+
+    return {
+        "message": "Login successful.",
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email
+        }
+    }
+
+# Retrieve the currently logged-in user's details
+@app.get("/api/auth/me")
+def get_current_user(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    authorization = request.headers.get("Authorization")
+
+    token = authorization.split(" ", 1)[1]
+
+    payload = decode_access_token(token)
+
+    if not payload or not payload.get("sub"):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired login token."
+        )
+
+    user = db.query(User).filter(
+        User.id == int(payload["sub"])
+    ).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="User account not found."
+        )
+
+    return {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email
+    }
 # Convert a task database record into a response dictionary
 def task_to_dict(task):
     return {

@@ -902,3 +902,19 @@ h1 {
     width: min(360px, calc(100vw - 40px));
   }
 }
+
+.logout-button {
+  padding: 10px 20px;
+  background-color: #fff;
+  color: #dc3545;
+  border: 1px solid #dc3545;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: 0.2s ease;
+}
+
+.logout-button:hover {
+  background-color: #dc3545;
+  color: #fff;
+}
